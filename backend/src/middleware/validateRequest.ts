@@ -1,18 +1,18 @@
 import { Request, Response, NextFunction } from 'express';
-import { AnySchema } from 'yup';
+import { AnyZodObject } from 'zod';
 import AppError from '../utils/AppError';
 
-export const validateRequest = (schema: AnySchema) => {
+export const validateRequest = (schema: AnyZodObject) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      await schema.validate({
+      await schema.parseAsync({
         body: req.body,
         query: req.query,
         params: req.params,
       });
       next();
-    } catch (err: any) {
-      next(new AppError(err.message, 400));
+    } catch (error) {
+      next(new AppError('Validation failed: ' + error.errors.map((e: any) => e.message).join(', '), 400));
     }
   };
 };

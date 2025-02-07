@@ -3,6 +3,37 @@ import { Server } from 'http';
 import { IIntervention } from '../models/Intervention';
 import { InterventionEvents, ResourceEvents, AlertEvents } from '../utils/events';
 
+interface UserAvailability {
+  status: string;
+  startTime?: Date;
+  endTime?: Date;
+  lastUpdated: Date;
+}
+
+interface UserTeam {
+  teamId: string;
+  role: string;
+  joinedAt: Date;
+}
+
+interface Coordinates {
+  type: 'Point';
+  coordinates: [number, number];
+}
+
+interface LocationData {
+  coordinates: [number, number];
+  timestamp: Date;
+}
+
+interface AlertData {
+  type: string;
+  message: string;
+  region?: string;
+  severity?: 'low' | 'medium' | 'high' | 'critical';
+  timestamp?: Date;
+}
+
 class SocketService {
   private io: SocketServer;
 
@@ -50,26 +81,82 @@ class SocketService {
     this.io.to(`region:${intervention.region}`).emit(InterventionEvents.INTERVENTION_STATUS_CHANGED, intervention);
   }
 
-  public emitResourcesAssigned(intervention: IIntervention): void {
-    this.io.to(`region:${intervention.region}`).emit(InterventionEvents.RESOURCES_ASSIGNED, intervention);
-    
-    // Notify assigned resources individually
-    intervention.resources.forEach(resource => {
-      this.io.to(`user:${resource.resourceId}`).emit(ResourceEvents.RESOURCE_ASSIGNED, intervention);
-    });
+  // User events
+  public emitUserAvailabilityUpdated(data: { userId: string; availability: UserAvailability }): void {
+    this.io.emit(ResourceEvents.USER_AVAILABILITY_UPDATED, data);
+  }
+
+  public emitUserLocationUpdated(data: { userId: string } & LocationData): void {
+    this.io.emit(ResourceEvents.USER_LOCATION_UPDATED, data);
+  }
+
+  public emitUserTeamUpdated(data: { userId: string; team: UserTeam | null }): void {
+    this.io.emit(ResourceEvents.USER_TEAM_UPDATED, data);
+  }
+
+  public emitUserStatusChanged(data: { userId: string; status: string }): void {
+    this.io.emit(ResourceEvents.USER_STATUS_CHANGED, data);
+  }
+
+  public emitUserAssignedToIntervention(data: { userId: string; interventionId: string }): void {
+    this.io.emit(ResourceEvents.USER_ASSIGNED_TO_INTERVENTION, data);
+  }
+
+  public emitUserRemovedFromIntervention(data: { userId: string; interventionId: string }): void {
+    this.io.emit(ResourceEvents.USER_REMOVED_FROM_INTERVENTION, data);
+  }
+
+  // Vehicle events
+  public emitVehicleLocationUpdated(data: { vehicleId: string } & LocationData): void {
+    this.io.emit(ResourceEvents.VEHICLE_LOCATION_UPDATED, data);
+  }
+
+  public emitVehicleStatusChanged(data: { vehicleId: string; status: string }): void {
+    this.io.emit(ResourceEvents.VEHICLE_STATUS_CHANGED, data);
+  }
+
+  public emitVehicleAssignedToIntervention(data: { vehicleId: string; interventionId: string }): void {
+    this.io.emit(ResourceEvents.VEHICLE_ASSIGNED_TO_INTERVENTION, data);
+  }
+
+  public emitVehicleRemovedFromIntervention(data: { vehicleId: string; interventionId: string }): void {
+    this.io.emit(ResourceEvents.VEHICLE_REMOVED_FROM_INTERVENTION, data);
   }
 
   // Alert events
-  public emitAlertCreated(alert: any, regionId: string): void {
-    this.io.to(`region:${regionId}`).emit(AlertEvents.ALERT_CREATED, alert);
+  public emitEmergencyAlert(data: AlertData): void {
+    if (data.region) {
+      this.io.to(`region:${data.region}`).emit(AlertEvents.EMERGENCY_ALERT, {
+        ...data,
+        timestamp: data.timestamp || new Date()
+      });
+    } else {
+      this.io.emit(AlertEvents.EMERGENCY_ALERT, {
+        ...data,
+        timestamp: data.timestamp || new Date()
+      });
+    }
   }
 
-  public emitAlertUpdated(alert: any, regionId: string): void {
-    this.io.to(`region:${regionId}`).emit(AlertEvents.ALERT_UPDATED, alert);
+  public emitWeatherAlert(data: AlertData): void {
+    if (data.region) {
+      this.io.to(`region:${data.region}`).emit(AlertEvents.WEATHER_ALERT, {
+        ...data,
+        timestamp: data.timestamp || new Date()
+      });
+    } else {
+      this.io.emit(AlertEvents.WEATHER_ALERT, {
+        ...data,
+        timestamp: data.timestamp || new Date()
+      });
+    }
   }
 
-  public emitVehicleLocationUpdated(data: { vehicleId: string; coordinates: [number, number]; timestamp: Date }): void {
-    this.io.emit('vehicle:location_updated', data);
+  public emitSystemAlert(data: Omit<AlertData, 'region'>): void {
+    this.io.emit(AlertEvents.SYSTEM_ALERT, {
+      ...data,
+      timestamp: data.timestamp || new Date()
+    });
   }
 }
 
