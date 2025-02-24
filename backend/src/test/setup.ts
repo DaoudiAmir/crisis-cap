@@ -1,7 +1,17 @@
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import jwt from 'jsonwebtoken';
-import config from '../config';
+import { config } from 'dotenv';
+import configJson from '../config';
+
+// Load environment variables
+config();
+
+declare global {
+  var signToken: (userId: string, role: string) => string;
+  var createTestUser: (role: string) => Promise<{ user: any; token: string }>;
+  var mongoServer: MongoMemoryServer;
+}
 
 let mongo: MongoMemoryServer;
 
@@ -12,6 +22,7 @@ beforeAll(async () => {
   const mongoUri = mongo.getUri();
 
   await mongoose.connect(mongoUri);
+  global.mongoServer = mongo;
 });
 
 beforeEach(async () => {
@@ -23,16 +34,18 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  await mongoose.connection.close();
-  await mongo.stop();
+  if (global.mongoServer) {
+    await mongoose.connection.close();
+    await global.mongoServer.stop();
+  }
 });
 
 // Global test helpers
 global.signToken = (userId: string, role: string = 'user') => {
   return jwt.sign(
     { id: userId, role },
-    config.jwt.secret,
-    { expiresIn: config.jwt.expiresIn }
+    configJson.jwt.secret,
+    { expiresIn: configJson.jwt.expiresIn }
   );
 };
 

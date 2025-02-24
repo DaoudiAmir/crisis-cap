@@ -49,10 +49,18 @@ export interface IUser extends Document {
     };
   };
   availability: {
-    startTime: Date;
-    endTime: Date;
-    isOnCall: boolean;
+    isAvailable: boolean;
+    nextAvailableDate?: Date;
+    schedule?: {
+      startTime: Date;
+      endTime: Date;
+    }[];
   };
+  availabilityHistory: Array<{
+    status: boolean;
+    timestamp: Date;
+    reason?: string;
+  }>;
   currentIntervention?: Schema.Types.ObjectId;
   isActive: boolean;
   lastLogin: Date;
@@ -161,10 +169,18 @@ const userSchema = new Schema<IUser>(
       },
     },
     availability: {
-      startTime: { type: Date },
-      endTime: { type: Date },
-      isOnCall: { type: Boolean, default: false },
+      isAvailable: { type: Boolean, default: true },
+      nextAvailableDate: { type: Date },
+      schedule: [{
+        startTime: { type: Date },
+        endTime: { type: Date }
+      }]
     },
+    availabilityHistory: [{
+      status: { type: Boolean, required: true },
+      timestamp: { type: Date, required: true },
+      reason: { type: String }
+    }],
     currentIntervention: {
       type: Schema.Types.ObjectId,
       ref: 'Intervention',
@@ -191,6 +207,14 @@ userSchema.index({ station: 1 });
 userSchema.index({ region: 1 });
 userSchema.index({ team: 1 });
 userSchema.index({ currentIntervention: 1 });
+
+// Add compound indexes for common query patterns
+userSchema.index({ role: 1, status: 1 }); // For finding available users by role
+userSchema.index({ station: 1, role: 1 }); // For finding users by station and role
+userSchema.index({ region: 1, specializations: 1 }); // For finding users by region and specialization
+userSchema.index({ team: 1, status: 1 }); // For finding team members by status
+userSchema.index({ currentIntervention: 1, status: 1 }); // For finding users by intervention and status
+userSchema.index({ 'certifications.expiryDate': 1 }); // For finding users with expiring certifications
 
 // Password hashing middleware
 userSchema.pre('save', async function (next) {

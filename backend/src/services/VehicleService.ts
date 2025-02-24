@@ -1,15 +1,18 @@
 import { Types } from 'mongoose';
 import Vehicle, { IVehicle, VehicleType, VehicleStatus } from '../models/Vehicle';
 import Region from '../models/Region';
-import Intervention from '../models/Intervention';
+import Intervention, { IIntervention } from '../models/Intervention';
 import AppError from '../utils/AppError';
-import SocketService from './SocketService';
+import type { SocketService } from './SocketService';
+import { default as socketService } from './SocketService';
 
-let socketService: SocketService;
+interface ServiceError extends Error {
+  statusCode?: number;
+  code?: string;
+}
 
-export const initializeSocketService = (service: SocketService) => {
-  socketService = service;
-};
+// Initialize socket service
+socketService.initialize(null); // Will be properly initialized later
 
 interface CreateVehicleDTO {
   type: VehicleType;
@@ -33,6 +36,13 @@ interface VehicleLocation {
   timestamp: Date;
 }
 
+interface VehicleInterventionHistory {
+  intervention: IIntervention;
+  startTime: Date;
+  endTime?: Date;
+  status: string;
+}
+
 class VehicleService {
   // Create a new vehicle
   async createVehicle(data: CreateVehicleDTO): Promise<IVehicle> {
@@ -50,8 +60,9 @@ class VehicleService {
       });
 
       return vehicle;
-    } catch (err: any) {
-      throw new AppError(err.message || 'Error creating vehicle', err.statusCode || 500);
+    } catch (err) {
+      const error = err as ServiceError;
+      throw new AppError(error.message || 'Error creating vehicle', error.statusCode || 500);
     }
   }
 
@@ -63,8 +74,9 @@ class VehicleService {
         throw new AppError('Vehicle not found', 404);
       }
       return vehicle;
-    } catch (err: any) {
-      throw new AppError(err.message || 'Error fetching vehicle', err.statusCode || 500);
+    } catch (err) {
+      const error = err as ServiceError;
+      throw new AppError(error.message || 'Error fetching vehicle', error.statusCode || 500);
     }
   }
 
@@ -99,8 +111,57 @@ class VehicleService {
       }
 
       return vehicle;
-    } catch (err: any) {
-      throw new AppError(err.message || 'Error updating vehicle', err.statusCode || 500);
+    } catch (err) {
+      const error = err as ServiceError;
+      throw new AppError(error.message || 'Error updating vehicle', error.statusCode || 500);
+    }
+  }
+
+  // Update vehicle status
+  async updateVehicleStatus(vehicleId: string, status: VehicleStatus): Promise<IVehicle> {
+    try {
+      const vehicle = await Vehicle.findById(vehicleId);
+      if (!vehicle) {
+        throw new AppError('Vehicle not found', 404);
+      }
+
+      vehicle.status = status;
+      await vehicle.save();
+
+      // Emit socket event
+      socketService.emitVehicleStatusChanged({
+        vehicleId,
+        status
+      });
+
+      return vehicle;
+    } catch (error) {
+      console.error('Update vehicle status error:', error);
+      throw error;
+    }
+  }
+
+  // Mark vehicle as in use
+  async markVehicleInUse(vehicleId: string): Promise<IVehicle> {
+    try {
+      const vehicle = await Vehicle.findById(vehicleId);
+      if (!vehicle) {
+        throw new AppError('Vehicle not found', 404);
+      }
+
+      vehicle.status = VehicleStatus.DEPLOYED;
+      await vehicle.save();
+
+      // Emit socket event
+      socketService.emitVehicleStatusChanged({
+        vehicleId,
+        status: VehicleStatus.DEPLOYED
+      });
+
+      return vehicle;
+    } catch (error) {
+      console.error('Mark vehicle in use error:', error);
+      throw error;
     }
   }
 
@@ -108,7 +169,7 @@ class VehicleService {
   async getVehiclesByRegion(regionId: string): Promise<IVehicle[]> {
     try {
       return await Vehicle.find({ region: new Types.ObjectId(regionId) });
-    } catch (err: any) {
+    } catch (err) {
       throw new AppError('Error fetching vehicles by region', 500);
     }
   }
@@ -120,7 +181,7 @@ class VehicleService {
         region: new Types.ObjectId(regionId),
         status: VehicleStatus.AVAILABLE
       });
-    } catch (err: any) {
+    } catch (err) {
       throw new AppError('Error fetching available vehicles', 500);
     }
   }
@@ -144,16 +205,14 @@ class VehicleService {
       }
 
       // Emit socket event
-      if (socketService) {
-        socketService.emitVehicleLocationUpdated({
-          vehicleId,
-          coordinates,
-          timestamp: new Date()
-        });
-      }
+      socketService.emitVehicleLocationUpdated({
+        vehicleId,
+        coordinates,
+        timestamp: new Date()
+      });
 
       return vehicle;
-    } catch (err: any) {
+    } catch (err) {
       throw new AppError('Error updating vehicle location', 500);
     }
   }
@@ -162,7 +221,7 @@ class VehicleService {
   async getVehiclesByType(type: VehicleType): Promise<IVehicle[]> {
     try {
       return await Vehicle.find({ type });
-    } catch (err: any) {
+    } catch (err) {
       throw new AppError('Error fetching vehicles by type', 500);
     }
   }
@@ -171,19 +230,26 @@ class VehicleService {
   async getVehiclesByStatus(status: VehicleStatus): Promise<IVehicle[]> {
     try {
       return await Vehicle.find({ status });
-    } catch (err: any) {
+    } catch (err) {
       throw new AppError('Error fetching vehicles by status', 500);
     }
   }
 
   // Get vehicle intervention history
-  async getVehicleInterventionHistory(vehicleId: string): Promise<any[]> {
+  async getVehicleInterventionHistory(vehicleId: string): Promise<VehicleInterventionHistory[]> {
     try {
-      return await Intervention.find({
+      const interventions = await Intervention.find({
         'resources.resourceId': vehicleId,
         'resources.resourceType': 'Vehicle'
       }).sort({ startTime: -1 });
-    } catch (err: any) {
+
+      return interventions.map(intervention => ({
+        intervention,
+        startTime: intervention.startTime,
+        endTime: intervention.endTime,
+        status: intervention.status
+      }));
+    } catch (err) {
       throw new AppError('Error fetching vehicle intervention history', 500);
     }
   }
@@ -204,8 +270,9 @@ class VehicleService {
       await vehicle.save();
 
       return vehicle;
-    } catch (err: any) {
-      throw new AppError(err.message || 'Error setting vehicle maintenance status', err.statusCode || 500);
+    } catch (err) {
+      const error = err as ServiceError;
+      throw new AppError(error.message || 'Error setting vehicle maintenance status', error.statusCode || 500);
     }
   }
 }

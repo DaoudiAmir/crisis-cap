@@ -34,6 +34,16 @@ interface UpdateInterventionDTO {
   }>;
 }
 
+interface InterventionFilters {
+  status?: InterventionStatus;
+  type?: InterventionType;
+  priority?: string;
+  region?: string;
+  station?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
 class InterventionService {
   // Create a new intervention
   async createIntervention(data: CreateInterventionDTO): Promise<IIntervention> {
@@ -154,6 +164,46 @@ class InterventionService {
       }).populate('resources.resourceId');
     } catch (error) {
       throw new AppError('Error fetching region interventions', 500);
+    }
+  }
+
+  // Get interventions with filters
+  async getInterventions(filters: InterventionFilters): Promise<IIntervention[]> {
+    try {
+      const query: any = {};
+
+      if (filters.status) {
+        query.status = filters.status;
+      }
+      if (filters.type) {
+        query.type = filters.type;
+      }
+      if (filters.priority) {
+        query.priority = filters.priority;
+      }
+      if (filters.region) {
+        query.region = new Types.ObjectId(filters.region);
+      }
+      if (filters.station) {
+        query.station = new Types.ObjectId(filters.station);
+      }
+      if (filters.startDate) {
+        query.startTime = { $gte: new Date(filters.startDate) };
+      }
+      if (filters.endDate) {
+        query.endTime = { $lte: new Date(filters.endDate) };
+      }
+
+      const interventions = await Intervention.find(query)
+        .populate('resources.resourceId')
+        .populate('region')
+        .populate('station')
+        .sort({ startTime: -1 });
+
+      return interventions;
+    } catch (error) {
+      console.error('Get interventions error:', error);
+      throw error;
     }
   }
 

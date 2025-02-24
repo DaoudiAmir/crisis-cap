@@ -146,6 +146,13 @@ teamSchema.index({ 'members.userId': 1 });
 teamSchema.index({ currentVehicle: 1 });
 teamSchema.index({ currentIntervention: 1 });
 
+// Add compound indexes for common query patterns
+teamSchema.index({ station: 1, status: 1, type: 1 }); // For finding available teams by type in a station
+teamSchema.index({ currentIntervention: 1, status: 1 }); // For finding teams by intervention and status
+teamSchema.index({ 'schedule.startTime': 1, 'schedule.endTime': 1 }); // For finding teams by schedule
+teamSchema.index({ type: 1, status: 1 }); // For finding available teams by type
+teamSchema.index({ 'members.userId': 1, status: 1 }); // For finding teams by member and status
+
 // Middleware to update lastStatusUpdate
 teamSchema.pre('save', function(next) {
   if (this.isModified('status')) {

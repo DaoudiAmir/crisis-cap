@@ -37,6 +37,10 @@ router.use(protect); // Apply authentication middleware to all routes below
 // Routes accessible to all authenticated users
 router.get('/me', UserController.getProfile);
 
+// User profile routes
+router.put('/profile', UserController.updateProfile);
+router.put('/password', UserController.changePassword);
+
 // Routes with role-based access
 router.post(
   '/register',

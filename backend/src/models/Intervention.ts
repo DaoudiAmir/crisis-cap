@@ -282,6 +282,15 @@ interventionSchema.index({ 'resources.resourceId': 1 });
 interventionSchema.index({ startTime: 1 });
 interventionSchema.index({ createdAt: 1 });
 
+// Add compound indexes for common query patterns
+interventionSchema.index({ status: 1, priority: 1, type: 1 }); // For finding interventions by status, priority and type
+interventionSchema.index({ region: 1, status: 1 }); // For finding interventions by region and status
+interventionSchema.index({ station: 1, status: 1 }); // For finding interventions by station and status
+interventionSchema.index({ startTime: 1, endTime: 1 }); // For finding interventions by time range
+interventionSchema.index({ 'resources.resourceId': 1, 'resources.status': 1 }); // For finding interventions by resource and status
+interventionSchema.index({ 'teams.teamId': 1, status: 1 }); // For finding interventions by team and status
+interventionSchema.index({ commander: 1, status: 1 }); // For finding interventions by commander and status
+
 // Methods
 interventionSchema.methods.addResourceToIntervention = async function(
   resourceId: string,

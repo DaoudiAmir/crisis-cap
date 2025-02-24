@@ -54,34 +54,24 @@ router.post(
   validateRequest(stationParamsSchema),
   StationController.addStationResource
 );
-router.delete(
-  '/:id/resources/:resourceId',
-  restrictTo(UserRole.OFFICER, UserRole.REGIONAL_COORDINATOR),
-  StationController.removeStationResource
-);
 
-// Manage station personnel
-router.post(
-  '/:id/personnel',
-  restrictTo(UserRole.OFFICER, UserRole.REGIONAL_COORDINATOR),
-  StationController.addStationPersonnel
-);
+// Delete station
 router.delete(
-  '/:id/personnel/:userId',
+  '/:id',
   restrictTo(UserRole.OFFICER, UserRole.REGIONAL_COORDINATOR),
-  StationController.removeStationPersonnel
+  StationController.deleteStation
 );
 
 // Manage station vehicles
 router.post(
-  '/:id/vehicles',
+  '/:id/vehicles/:vehicleId',
   restrictTo(UserRole.OFFICER, UserRole.REGIONAL_COORDINATOR),
-  StationController.addStationVehicle
+  StationController.addVehicle
 );
 router.delete(
   '/:id/vehicles/:vehicleId',
   restrictTo(UserRole.OFFICER, UserRole.REGIONAL_COORDINATOR),
-  StationController.removeStationVehicle
+  StationController.removeVehicle
 );
 
 // Manage station equipment

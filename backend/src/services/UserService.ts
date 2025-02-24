@@ -5,6 +5,7 @@ import User, { IUser, UserRole } from '../models/User';
 import AppError from '../utils/AppError';
 import Team from '../models/Team';
 import Intervention from '../models/Intervention';
+import socketService from './SocketService';
 
 interface CreateUserDTO {
   firstName: string;
@@ -317,38 +318,25 @@ class UserService {
   // Update user availability
   public async updateAvailability(
     userId: string,
-    status: string,
-    startTime?: Date,
-    endTime?: Date
+    isAvailable: boolean
   ): Promise<SafeUser> {
-    try {
-      const user = await User.findById(userId);
-      if (!user) {
-        throw new AppError('User not found', 404);
-      }
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { isAvailable },
+      { new: true }
+    );
 
-      user.availability = {
-        status,
-        startTime,
-        endTime,
-        lastUpdated: new Date()
-      };
-
-      await user.save();
-
-      // Emit socket event
-      if (socketService) {
-        socketService.emitUserAvailabilityUpdated({
-          userId,
-          availability: user.availability
-        });
-      }
-
-      return this.toSafeUser(user);
-    } catch (error) {
-      console.error('Update availability error:', error);
-      throw error;
+    if (!user) {
+      throw new AppError('User not found', 404);
     }
+
+    // Emit socket event for real-time updates
+    socketService.emitUserAvailabilityUpdated({
+      userId: user._id.toString(),
+      isAvailable: user.isAvailable
+    });
+
+    return this.toSafeUser(user);
   }
 
   // Add specialization to user
@@ -436,12 +424,10 @@ class UserService {
       await user.save();
 
       // Emit socket event
-      if (socketService) {
-        socketService.emitUserTeamUpdated({
-          userId,
-          team: user.team
-        });
-      }
+      socketService.emitUserTeamUpdated({
+        userId,
+        team: user.team
+      });
 
       return this.toSafeUser(user);
     } catch (error) {
@@ -462,12 +448,10 @@ class UserService {
       await user.save();
 
       // Emit socket event
-      if (socketService) {
-        socketService.emitUserTeamUpdated({
-          userId,
-          team: null
-        });
-      }
+      socketService.emitUserTeamUpdated({
+        userId,
+        team: {} as ITeam // Empty team object instead of null
+      });
 
       return this.toSafeUser(user);
     } catch (error) {
@@ -574,8 +558,8 @@ class UserService {
         activeUsers: users.filter(user => user.isActive).length,
         totalInterventions: interventions.length,
         averageInterventionsPerUser: interventions.length / users.length,
-        usersByRole: {},
-        interventionsByType: {}
+        usersByRole: {} as Record<UserRole, number>,
+        interventionsByType: {} as Record<string, number>
       };
 
       // Group users by role
@@ -640,26 +624,44 @@ class UserService {
 
       user.location = {
         type: 'Point',
-        coordinates
+        coordinates,
+        lastUpdated: new Date()
       };
-      user.lastLocationUpdate = new Date();
 
       await user.save();
 
       // Emit socket event
-      if (socketService) {
-        socketService.emitUserLocationUpdated({
-          userId,
-          coordinates,
-          timestamp: user.lastLocationUpdate
-        });
-      }
+      socketService.emitUserLocationUpdated({
+        userId,
+        coordinates,
+        timestamp: new Date()
+      });
 
       return this.toSafeUser(user);
     } catch (error) {
       console.error('Update location error:', error);
       throw error;
     }
+  }
+
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+    const user = await User.findById(userId).select('+password');
+    if (!user) {
+      throw new AppError('User not found', 404);
+    }
+
+    // Check if current password is correct
+    const isPasswordCorrect = await user.comparePassword(currentPassword);
+    if (!isPasswordCorrect) {
+      throw new AppError('Current password is incorrect', 401);
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+    // Update password
+    user.password = hashedPassword;
+    await user.save();
   }
 }
 

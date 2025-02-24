@@ -36,7 +36,7 @@ router
   )
   .put(
     restrictTo(UserRole.OFFICER, UserRole.REGIONAL_COORDINATOR),
-    validateRequest(equipmentParamsSchema.and(updateEquipmentSchema)),
+    validateRequest({ params: equipmentParamsSchema, body: updateEquipmentSchema }),
     EquipmentController.updateEquipment
   )
   .delete(
@@ -91,7 +91,7 @@ router.get(
 router.patch(
   '/:id/status',
   restrictTo(UserRole.TEAM_LEADER, UserRole.OFFICER, UserRole.REGIONAL_COORDINATOR),
-  validateRequest(equipmentParamsSchema.and(equipmentStatusSchema)),
+  validateRequest({ params: equipmentParamsSchema, body: equipmentStatusSchema }),
   EquipmentController.updateEquipmentStatus
 );
 
@@ -123,7 +123,7 @@ router.post(
 router.post(
   '/:id/maintenance',
   restrictTo(UserRole.OFFICER, UserRole.REGIONAL_COORDINATOR),
-  validateRequest(equipmentParamsSchema.and(maintenanceRecordSchema)),
+  validateRequest({ params: equipmentParamsSchema, body: maintenanceRecordSchema }),
   EquipmentController.addMaintenanceRecord
 );
 router.get(
@@ -159,7 +159,7 @@ router.put(
 router.post(
   '/:id/transfer',
   restrictTo(UserRole.OFFICER, UserRole.REGIONAL_COORDINATOR),
-  validateRequest(equipmentParamsSchema.and(equipmentTransferSchema)),
+  validateRequest({ params: equipmentParamsSchema, body: equipmentTransferSchema }),
   EquipmentController.transferEquipment
 );
 

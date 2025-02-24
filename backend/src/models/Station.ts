@@ -71,20 +71,23 @@ const stationSchema = new Schema<IStation>(
       personnel: {
         type: Number,
         required: [true, 'Personnel capacity is required'],
+        min: [0, 'Personnel capacity cannot be negative'],
       },
       vehicles: {
         type: Number,
         required: [true, 'Vehicle capacity is required'],
+        min: [0, 'Vehicle capacity cannot be negative'],
       },
     },
     contact: {
       phone: {
         type: String,
-        required: [true, 'Contact phone is required'],
+        required: [true, 'Phone number is required'],
       },
       email: {
         type: String,
-        required: [true, 'Contact email is required'],
+        required: [true, 'Email is required'],
+        lowercase: true,
       },
     },
     isActive: {
@@ -97,8 +100,17 @@ const stationSchema = new Schema<IStation>(
   }
 );
 
-// Index for geospatial queries
-stationSchema.index({ 'address.coordinates': '2d' });
+// Create 2dsphere index for geospatial queries
+stationSchema.index({ 'address.coordinates': '2dsphere' });
+
+// Create text index for search
+stationSchema.index({ name: 'text', 'address.city': 'text' });
+
+// Add compound indexes for common query patterns
+stationSchema.index({ department: 1, isActive: 1 }); // For finding active stations by department
+stationSchema.index({ 'address.city': 1, isActive: 1 }); // For finding active stations by city
+stationSchema.index({ code: 1 }, { unique: true }); // For finding stations by unique code
+stationSchema.index({ 'capacity.personnel': 1, 'capacity.vehicles': 1 }); // For finding stations by capacity
 
 const Station = mongoose.model<IStation>('Station', stationSchema);
 

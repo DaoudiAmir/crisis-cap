@@ -3,8 +3,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import morgan from 'morgan';
-import { mongoSanitize } from 'express-mongo-sanitize';
-import { compression } from 'compression';
+import mongoSanitize from 'express-mongo-sanitize';
+import compression from 'compression';
 import { Server as SocketServer } from 'socket.io';
 import { createServer, Server as HTTPServer } from 'http';
 import { logger, stream } from '../utils/logger';
@@ -16,7 +16,8 @@ import teamRoutes from '../routes/teamRoutes';
 import equipmentRoutes from '../routes/equipmentRoutes';
 
 import { errorHandler, notFound } from '../middleware/errorHandler';
-import SocketService from '../services/SocketService';
+import type { SocketService } from '../services/SocketService';
+import { default as socketService } from '../services/SocketService';
 
 export class AppServer {
   public app: Application;
@@ -34,7 +35,8 @@ export class AppServer {
         credentials: true
       },
     });
-    this.socketService = new SocketService(this.server);
+    socketService.initialize(this.server);
+    this.socketService = socketService;
     this.configureMiddleware();
     this.configureRoutes();
     this.configureSockets();

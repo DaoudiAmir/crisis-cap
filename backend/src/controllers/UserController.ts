@@ -375,6 +375,63 @@ class UserController {
       next(err);
     }
   }
+
+  // @route   PUT /api/users/profile
+  // @desc    Update user profile
+  // @access  Private
+  async updateProfile(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user?._id;
+      if (!userId) {
+        throw new AppError('Not authenticated', 401);
+      }
+
+      const allowedFields = ['firstName', 'lastName', 'email', 'contactInfo'];
+      const updateData = Object.keys(req.body)
+        .filter(key => allowedFields.includes(key))
+        .reduce((obj: any, key) => {
+          obj[key] = req.body[key];
+          return obj;
+        }, {});
+
+      const user = await UserService.updateUser(userId, updateData);
+
+      res.status(200).json({
+        status: 'success',
+        data: {
+          user
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  // @route   PUT /api/users/password
+  // @desc    Change user password
+  // @access  Private
+  async changePassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user?._id;
+      if (!userId) {
+        throw new AppError('Not authenticated', 401);
+      }
+
+      const { currentPassword, newPassword } = req.body;
+      if (!currentPassword || !newPassword) {
+        throw new AppError('Please provide current and new password', 400);
+      }
+
+      await UserService.changePassword(userId, currentPassword, newPassword);
+
+      res.status(200).json({
+        status: 'success',
+        message: 'Password updated successfully'
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 export default new UserController();

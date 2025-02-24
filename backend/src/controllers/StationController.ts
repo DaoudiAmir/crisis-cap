@@ -1,12 +1,17 @@
 import { Request, Response, NextFunction } from 'express';
 import { Types } from 'mongoose';
-import Station from '../models/Station';
-import User from '../models/User';
-import Vehicle from '../models/Vehicle';
-import Equipment from '../models/Equipment';
+import Station, { IStation } from '../models/Station';
 import { catchAsync } from '../utils/catchAsync';
 import AppError from '../utils/AppError';
-import SocketService from '../services/SocketService';
+import socketService from '../services/SocketService';
+import stationService, { ServiceResult } from '../services/StationService';
+import { validateStation, validateCapacity } from '../schemas/stationSchema';
+
+interface StationParams {
+  id: string;
+  vehicleId?: string;
+  equipmentId?: string;
+}
 
 class StationController {
   /**
@@ -14,7 +19,11 @@ class StationController {
    * @route GET /api/v1/stations
    */
   public getAllStations = catchAsync(async (req: Request, res: Response) => {
-    const stations = await Station.find();
+    const stations = await Station.find()
+      .populate('vehicles', 'name type status')
+      .populate('equipment', 'name type status')
+      .populate('personnel', 'name role status');
+
     res.status(200).json({
       status: 'success',
       results: stations.length,
@@ -26,9 +35,13 @@ class StationController {
    * Get a single station
    * @route GET /api/v1/stations/:id
    */
-  public getStation = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-    const station = await Station.findById(req.params.id);
-    if (!station) {
+  public getStation = catchAsync(async (req: Request<StationParams>, res: Response, next: NextFunction) => {
+    const station = await Station.findById(req.params.id)
+      .populate('vehicles', 'name type status')
+      .populate('equipment', 'name type status')
+      .populate('personnel', 'name role status');
+
+    if (!station || !station._id) {
       return next(new AppError('Station not found', 404));
     }
 
@@ -43,11 +56,14 @@ class StationController {
    * @route POST /api/v1/stations
    */
   public createStation = catchAsync(async (req: Request, res: Response) => {
-    const station = await Station.create(req.body);
-    
-    // Notify clients about new station
-    const socketService: SocketService = req.app.get('socketService');
-    socketService.emitStationCreated(station);
+    const validatedData = validateStation(req.body);
+    const station = await Station.create(validatedData);
+
+    if (!station || !station._id) {
+      throw new AppError('Failed to create station', 500);
+    }
+
+    socketService.emitStationUpdate(station._id.toString(), { type: 'STATION_CREATED', station });
 
     res.status(201).json({
       status: 'success',
@@ -57,21 +73,20 @@ class StationController {
 
   /**
    * Update a station
-   * @route PUT /api/v1/stations/:id
+   * @route PATCH /api/v1/stations/:id
    */
-  public updateStation = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-    const station = await Station.findByIdAndUpdate(req.params.id, req.body, {
+  public updateStation = catchAsync(async (req: Request<StationParams>, res: Response, next: NextFunction) => {
+    const validatedData = validateStation(req.body);
+    const station = await Station.findByIdAndUpdate(req.params.id, validatedData, {
       new: true,
       runValidators: true
     });
 
-    if (!station) {
+    if (!station || !station._id) {
       return next(new AppError('Station not found', 404));
     }
 
-    // Notify clients about station update
-    const socketService: SocketService = req.app.get('socketService');
-    socketService.emitStationUpdated(station);
+    socketService.emitStationUpdate(station._id.toString(), { type: 'STATION_UPDATED', station });
 
     res.status(200).json({
       status: 'success',
@@ -80,28 +95,147 @@ class StationController {
   });
 
   /**
-   * Update station status
-   * @route PATCH /api/v1/stations/:id/status
+   * Delete a station
+   * @route DELETE /api/v1/stations/:id
    */
-  public updateStationStatus = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-    const { status } = req.body;
-    const station = await Station.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true, runValidators: true }
-    );
+  public deleteStation = catchAsync(async (req: Request<StationParams>, res: Response, next: NextFunction) => {
+    const station = await Station.findByIdAndDelete(req.params.id);
 
+    if (!station || !station._id) {
+      return next(new AppError('Station not found', 404));
+    }
+
+    socketService.emitStationUpdate(station._id.toString(), { type: 'STATION_DELETED', stationId: station._id.toString() });
+
+    res.status(204).json({
+      status: 'success',
+      data: null
+    });
+  });
+
+  /**
+   * Add a vehicle to a station
+   * @route POST /api/v1/stations/:id/vehicles/:vehicleId
+   */
+  public addVehicle = catchAsync(async (req: Request<StationParams>, res: Response, next: NextFunction) => {
+    if (!req.params.id || !req.params.vehicleId || !Types.ObjectId.isValid(req.params.id) || !Types.ObjectId.isValid(req.params.vehicleId)) {
+      return next(new AppError('Invalid station or vehicle ID', 400));
+    }
+
+    const result = await stationService.addVehicle(req.params.id, req.params.vehicleId);
+    
+    if (!result.success) {
+      return next(new AppError(result.message || 'Failed to add vehicle', 400));
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Vehicle added to station successfully',
+      data: result.data
+    });
+  });
+
+  /**
+   * Remove a vehicle from a station
+   * @route DELETE /api/v1/stations/:id/vehicles/:vehicleId
+   */
+  public removeVehicle = catchAsync(async (req: Request<StationParams>, res: Response, next: NextFunction) => {
+    if (!req.params.id || !req.params.vehicleId || !Types.ObjectId.isValid(req.params.id) || !Types.ObjectId.isValid(req.params.vehicleId)) {
+      return next(new AppError('Invalid station or vehicle ID', 400));
+    }
+
+    const result = await stationService.removeVehicle(req.params.id, req.params.vehicleId);
+    
+    if (!result.success) {
+      return next(new AppError(result.message || 'Failed to remove vehicle', 400));
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Vehicle removed from station successfully',
+      data: result.data
+    });
+  });
+
+  /**
+   * Add equipment to a station
+   * @route POST /api/v1/stations/:id/equipment
+   */
+  public addStationEquipment = catchAsync(async (req: Request<StationParams>, res: Response, next: NextFunction) => {
+    const { id } = req.params;
+    const { equipmentId } = req.body;
+
+    const station = await stationService.addEquipment(id, equipmentId);
+    
     if (!station) {
       return next(new AppError('Station not found', 404));
     }
 
-    // Notify clients about status update
-    const socketService: SocketService = req.app.get('socketService');
-    socketService.emitStationStatusChanged(station);
+    // Emit socket event
+    socketService.emitStationResourceUpdated({
+      stationId: id,
+      resourceType: 'equipment',
+      action: 'add',
+      resourceId: equipmentId
+    });
 
     res.status(200).json({
       status: 'success',
       data: { station }
+    });
+  });
+
+  /**
+   * Remove equipment from a station
+   * @route DELETE /api/v1/stations/:id/equipment/:equipmentId
+   */
+  public removeStationEquipment = catchAsync(async (req: Request<StationParams>, res: Response, next: NextFunction) => {
+    const { id, equipmentId } = req.params;
+
+    if (!equipmentId) {
+      return next(new AppError('Equipment ID is required', 400));
+    }
+
+    const station = await stationService.removeEquipment(id, equipmentId);
+    
+    if (!station) {
+      return next(new AppError('Station not found', 404));
+    }
+
+    // Emit socket event
+    socketService.emitStationResourceUpdated({
+      stationId: id,
+      resourceType: 'equipment',
+      action: 'remove',
+      resourceId: equipmentId
+    });
+
+    res.status(200).json({
+      status: 'success',
+      data: { station }
+    });
+  });
+
+  /**
+   * Update station capacity
+   * @route PATCH /api/v1/stations/:id/capacity
+   */
+  public updateCapacity = catchAsync(async (req: Request<StationParams>, res: Response, next: NextFunction) => {
+    if (!req.params.id || !Types.ObjectId.isValid(req.params.id)) {
+      return next(new AppError('Invalid station ID', 400));
+    }
+
+    const validatedCapacity = validateCapacity(req.body);
+    const result = await stationService.updateCapacity(req.params.id, validatedCapacity);
+    
+    if (!result.success) {
+      return next(new AppError(result.message || 'Failed to update capacity', 400));
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Station capacity updated successfully',
+      data: result.data
     });
   });
 
@@ -109,46 +243,18 @@ class StationController {
    * Get station statistics
    * @route GET /api/v1/stations/:id/statistics
    */
-  public getStationStatistics = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-    const stationId = new Types.ObjectId(req.params.id);
+  public getStationStatistics = catchAsync(async (req: Request<StationParams>, res: Response, next: NextFunction) => {
+    const station = await Station.findById(req.params.id);
 
-    const [
-      personnelCount,
-      vehicleCount,
-      equipmentCount,
-      activePersonnel,
-      availableVehicles,
-      equipmentInMaintenance
-    ] = await Promise.all([
-      User.countDocuments({ station: stationId }),
-      Vehicle.countDocuments({ station: stationId }),
-      Equipment.countDocuments({ station: stationId }),
-      User.countDocuments({ station: stationId, isAvailable: true }),
-      Vehicle.countDocuments({ station: stationId, status: 'available' }),
-      Equipment.countDocuments({ station: stationId, status: 'maintenance' })
-    ]);
+    if (!station) {
+      return next(new AppError('Station not found', 404));
+    }
+
+    const statistics = await stationService.getStationStatistics(station._id);
 
     res.status(200).json({
       status: 'success',
-      data: {
-        statistics: {
-          personnel: {
-            total: personnelCount,
-            active: activePersonnel,
-            availability: personnelCount ? (activePersonnel / personnelCount) * 100 : 0
-          },
-          vehicles: {
-            total: vehicleCount,
-            available: availableVehicles,
-            availability: vehicleCount ? (availableVehicles / vehicleCount) * 100 : 0
-          },
-          equipment: {
-            total: equipmentCount,
-            inMaintenance: equipmentInMaintenance,
-            maintenanceRate: equipmentCount ? (equipmentInMaintenance / equipmentCount) * 100 : 0
-          }
-        }
-      }
+      data: { statistics }
     });
   });
 
@@ -156,23 +262,22 @@ class StationController {
    * Get station resources
    * @route GET /api/v1/stations/:id/resources
    */
-  public getStationResources = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-    const stationId = new Types.ObjectId(req.params.id);
+  public getStationResources = catchAsync(async (req: Request<StationParams>, res: Response, next: NextFunction) => {
+    const station = await Station.findById(req.params.id)
+      .populate('vehicles')
+      .populate('equipment')
+      .populate('personnel');
 
-    const [personnel, vehicles, equipment] = await Promise.all([
-      User.find({ station: stationId }).select('name role isAvailable lastActive'),
-      Vehicle.find({ station: stationId }).select('name type status lastMaintenance'),
-      Equipment.find({ station: stationId }).select('name type status lastInspection')
-    ]);
+    if (!station) {
+      return next(new AppError('Station not found', 404));
+    }
 
     res.status(200).json({
       status: 'success',
       data: {
-        resources: {
-          personnel,
-          vehicles,
-          equipment
-        }
+        vehicles: station.vehicles,
+        equipment: station.equipment,
+        personnel: station.personnel
       }
     });
   });
@@ -181,27 +286,15 @@ class StationController {
    * Get nearby stations
    * @route GET /api/v1/stations/:id/nearby
    */
-  public getNearbyStations = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  public getNearbyStations = catchAsync(async (req: Request<StationParams>, res: Response, next: NextFunction) => {
     const station = await Station.findById(req.params.id);
+    
     if (!station) {
       return next(new AppError('Station not found', 404));
     }
 
     const radius = Number(req.query.radius) || 10; // Default 10km radius
-    const coordinates = station.address.coordinates;
-
-    const nearbyStations = await Station.find({
-      _id: { $ne: station._id },
-      'address.coordinates': {
-        $near: {
-          $geometry: {
-            type: 'Point',
-            coordinates: [coordinates.longitude, coordinates.latitude]
-          },
-          $maxDistance: radius * 1000 // Convert km to meters
-        }
-      }
-    }).select('name address');
+    const nearbyStations = await stationService.findNearbyStations(station.location, radius);
 
     res.status(200).json({
       status: 'success',
@@ -211,102 +304,62 @@ class StationController {
   });
 
   /**
-   * Add resource to station
-   * @route POST /api/v1/stations/:id/resources
+   * Update station status
+   * @route PATCH /api/v1/stations/:id/status
    */
-  public addStationResource = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-    const { resourceType, resourceId } = req.body;
-    const stationId = req.params.id;
+  public updateStationStatus = catchAsync(async (req: Request<StationParams>, res: Response, next: NextFunction) => {
+    const { status } = req.body;
+    const station = await Station.findById(req.params.id);
 
-    let resource;
-    switch (resourceType) {
-      case 'personnel':
-        resource = await User.findByIdAndUpdate(
-          resourceId,
-          { station: stationId },
-          { new: true }
-        );
-        break;
-      case 'vehicle':
-        resource = await Vehicle.findByIdAndUpdate(
-          resourceId,
-          { station: stationId },
-          { new: true }
-        );
-        break;
-      case 'equipment':
-        resource = await Equipment.findByIdAndUpdate(
-          resourceId,
-          { station: stationId },
-          { new: true }
-        );
-        break;
-      default:
-        return next(new AppError('Invalid resource type', 400));
+    if (!station) {
+      return next(new AppError('Station not found', 404));
     }
 
-    if (!resource) {
-      return next(new AppError('Resource not found', 404));
-    }
+    station.status = status;
+    await station.save();
 
-    // Notify clients about resource addition
-    const socketService: SocketService = req.app.get('socketService');
-    socketService.emitStationResourceUpdated({ stationId, resourceType, action: 'add', resource });
+    // Emit socket event for real-time updates
+    socketService.emitStationStatusChanged({
+      stationId: station._id,
+      status: station.status
+    });
 
     res.status(200).json({
       status: 'success',
-      data: { resource }
+      data: { station }
     });
   });
 
   /**
-   * Remove resource from station
-   * @route DELETE /api/v1/stations/:id/resources/:resourceId
-   */
-  public removeStationResource = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-    const { resourceType } = req.query;
-    const { id: stationId, resourceId } = req.params;
+ * Add resource to station
+ * @route POST /api/v1/stations/:id/resources
+ */
+public addStationResource = catchAsync(async (req: Request<StationParams>, res: Response, next: NextFunction) => {
+  const { id } = req.params;
+  const { resourceType, resourceId } = req.body;
 
-    let resource;
-    switch (resourceType) {
-      case 'personnel':
-        resource = await User.findByIdAndUpdate(
-          resourceId,
-          { $unset: { station: 1 } },
-          { new: true }
-        );
-        break;
-      case 'vehicle':
-        resource = await Vehicle.findByIdAndUpdate(
-          resourceId,
-          { $unset: { station: 1 } },
-          { new: true }
-        );
-        break;
-      case 'equipment':
-        resource = await Equipment.findByIdAndUpdate(
-          resourceId,
-          { $unset: { station: 1 } },
-          { new: true }
-        );
-        break;
-      default:
-        return next(new AppError('Invalid resource type', 400));
-    }
+  let result: ServiceResult;
+  switch (resourceType) {
+    case 'vehicle':
+      result = await stationService.addVehicle(id, resourceId);
+      break;
+    case 'equipment':
+      result = await stationService.addEquipment(id, resourceId);
+      break;
+    default:
+      return next(new AppError('Invalid resource type', 400));
+  }
 
-    if (!resource) {
-      return next(new AppError('Resource not found', 404));
-    }
+  if (!result.success) {
+    return next(new AppError(result.message || 'Failed to add resource', 400));
+  }
 
-    // Notify clients about resource removal
-    const socketService: SocketService = req.app.get('socketService');
-    socketService.emitStationResourceUpdated({ stationId, resourceType, action: 'remove', resource });
-
-    res.status(200).json({
-      status: 'success',
-      data: null
-    });
+  res.status(200).json({
+    status: 'success',
+    message: 'Resource added successfully',
+    data: result.data
   });
+});
 }
 
 export default new StationController();

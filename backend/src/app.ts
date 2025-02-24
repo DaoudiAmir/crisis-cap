@@ -1,28 +1,25 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
-import mongoSanitize from 'mongo-sanitize';
-import compression from 'node:zlib';
 import morgan from 'morgan';
+import compression from 'compression';
+import rateLimit from 'express-rate-limit';
+import mongoSanitize from 'express-mongo-sanitize';
 import { createServer } from 'http';
-import { Server as SocketServer } from 'socket.io';
-
-import userRoutes from './routes/userRoutes';
-import stationRoutes from './routes/stationRoutes';
-import teamRoutes from './routes/teamRoutes';
-import equipmentRoutes from './routes/equipmentRoutes';
-
+import connectDB from './config/database';
+import socketService from './services/SocketService';
 import { errorHandler } from './middleware/errorHandler';
-import connectDB from './config/db'; // Changed import path
-import SocketService from './services/SocketService';
+import routes from './routes';
 
 // Initialize express app
 const app = express();
 const httpServer = createServer(app);
 
-// Initialize Socket.IO
-const socketService = new SocketService(httpServer);
+// Initialize socket service
+socketService.initialize(httpServer);
+
+// Connect to MongoDB
+connectDB();
 
 // Security middleware
 app.use(helmet());
@@ -39,8 +36,8 @@ const limiter = rateLimit({
 app.use('/api', limiter);
 
 // Body parsing middleware
-app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
 
 // Data sanitization against NoSQL query injection
 app.use(mongoSanitize());
@@ -54,10 +51,7 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // API routes
-app.use('/api/v1/users', userRoutes);
-app.use('/api/v1/stations', stationRoutes);
-app.use('/api/v1/teams', teamRoutes);
-app.use('/api/v1/equipment', equipmentRoutes);
+app.use('/api', routes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -70,8 +64,5 @@ app.get('/health', (req, res) => {
 
 // Error handling
 app.use(errorHandler);
-
-// Connect to database
-connectDB();
 
 export { app, httpServer };
