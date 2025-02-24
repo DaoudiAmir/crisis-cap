@@ -173,7 +173,7 @@ teamSchema.virtual('activeDuration').get(function() {
 
 // Methods
 teamSchema.methods.hasSpecialization = function(specialization: string): boolean {
-  return this.members.some(member => 
+  return this.members.some((member: TeamMember) => 
     member.specializations.includes(specialization)
   );
 };

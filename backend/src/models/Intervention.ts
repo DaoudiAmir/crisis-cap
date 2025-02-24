@@ -309,7 +309,7 @@ interventionSchema.methods.removeResourceFromIntervention = async function(
   resourceId: string
 ): Promise<void> {
   this.resources = this.resources.filter(
-    resource => resource.resourceId.toString() !== resourceId
+    (resource: { resourceId: mongoose.Types.ObjectId }) => resource.resourceId.toString() !== resourceId
   );
   await this.save();
 };
