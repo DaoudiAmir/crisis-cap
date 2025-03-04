@@ -2,7 +2,7 @@ import Head from "next/head";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import Image from "next/image";
-import { FaSignInAlt, FaUserPlus, FaChartLine, FaMapMarkedAlt, FaUsers, FaHeadset, FaMobileAlt } from "react-icons/fa";
+import { FaSignInAlt, FaUserPlus, FaChartLine, FaMapMarkedAlt, FaUsers, FaHeadset, FaMobileAlt, FaCode, FaExchangeAlt, FaBook } from "react-icons/fa";
 import { useRouter } from "next/router";
 import Link from "next/link";
 
@@ -178,6 +178,55 @@ const Home = () => {
               <div className="stat-title">Disponibilité</div>
               <div className="stat-value">99.9%</div>
               <div className="stat-desc">Temps de fonctionnement</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Developer Resources Section */}
+      <section className="py-16 bg-base-200">
+        <div className="container mx-auto px-4">
+          <h2 className="text-4xl font-bold text-center mb-12">Ressources pour Développeurs</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* API Documentation */}
+            <div className="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow">
+              <div className="card-body">
+                <h3 className="card-title text-2xl flex items-center">
+                  <FaBook className="text-3xl text-primary mr-3" />
+                  Documentation API
+                </h3>
+                <p className="text-lg mb-4">
+                  Accédez à notre documentation API complète pour intégrer Crisis-Cap à vos systèmes existants. 
+                  Explorez les endpoints, les exemples de requêtes et les guides d'authentification.
+                </p>
+                <div className="card-actions justify-end">
+                  <Link href="/api-documentation" className="btn btn-primary">
+                    <FaCode className="mr-2" />
+                    Explorer la Documentation
+                  </Link>
+                </div>
+              </div>
+            </div>
+            
+            {/* Integration Options */}
+            <div className="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow">
+              <div className="card-body">
+                <h3 className="card-title text-2xl flex items-center">
+                  <FaExchangeAlt className="text-3xl text-primary mr-3" />
+                  Options d'Intégration
+                </h3>
+                <p className="text-lg mb-4">
+                  Découvrez comment intégrer Crisis-Cap avec vos systèmes de gestion, applications mobiles et 
+                  autres outils. Nos solutions d'intégration flexibles s'adaptent à vos besoins spécifiques.
+                </p>
+                <div className="card-actions justify-end">
+                  <Link href="/integration" className="btn btn-primary">
+                    <FaExchangeAlt className="mr-2" />
+                    Voir les Options d'Intégration
+                  </Link>
+                </div>
+              </div>
             </div>
           </div>
         </div>

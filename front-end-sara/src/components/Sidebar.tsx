@@ -11,7 +11,13 @@ import {
   FaClipboardList, 
   FaChartLine, 
   FaCog, 
-  FaSignOutAlt 
+  FaSignOutAlt,
+  FaGraduationCap,
+  FaQuestionCircle,
+  FaBook,
+  FaInfoCircle,
+  FaPlug,
+  FaCode
 } from "react-icons/fa";
 
 const Sidebar = () => {
@@ -44,7 +50,7 @@ const Sidebar = () => {
       {/* User Info */}
       {user && (
         <div className="p-4 border-b border-base-300">
-          <div className="flex items-center">
+          <Link href="/profile" className="flex items-center hover:bg-base-300 p-2 rounded-lg transition-colors">
             <div className="avatar placeholder">
               <div className="bg-neutral text-neutral-content rounded-full w-12">
                 <span>{user.firstName?.charAt(0) || ""}{user.lastName?.charAt(0) || ""}</span>
@@ -54,7 +60,7 @@ const Sidebar = () => {
               <p className="font-medium">{user.firstName} {user.lastName}</p>
               <p className="text-xs opacity-70">{user.role}</p>
             </div>
-          </div>
+          </Link>
         </div>
       )}
       
@@ -110,6 +116,52 @@ const Sidebar = () => {
           <Link href="/equipment" className={isActive("/equipment") ? "active" : ""}>
             <FaClipboardList className="mr-2" />
             Équipements
+          </Link>
+        </li>
+        <li>
+          <Link href="/resources" className={isActive("/resources") ? "active" : ""}>
+            <FaBook className="mr-2" />
+            Centre de ressources
+          </Link>
+        </li>
+        
+        {/* Training */}
+        <li className="menu-title">
+          <span>Formation</span>
+        </li>
+        <li>
+          <Link href="/training" className={isActive("/training") ? "active" : ""}>
+            <FaGraduationCap className="mr-2" />
+            Centre de formation
+          </Link>
+        </li>
+        
+        {/* Support */}
+        <li className="menu-title">
+          <span>Support</span>
+        </li>
+        <li>
+          <Link href="/support" className={isActive("/support") ? "active" : ""}>
+            <FaQuestionCircle className="mr-2" />
+            Aide et support
+          </Link>
+        </li>
+        <li>
+          <Link href="/integration" className={isActive("/integration") ? "active" : ""}>
+            <FaPlug className="mr-2" />
+            Intégration
+          </Link>
+        </li>
+        <li>
+          <Link href="/api-documentation" className={isActive("/api-documentation") ? "active" : ""}>
+            <FaCode className="mr-2" />
+            API Documentation
+          </Link>
+        </li>
+        <li>
+          <Link href="/about" className={isActive("/about") ? "active" : ""}>
+            <FaInfoCircle className="mr-2" />
+            À propos
           </Link>
         </li>
         

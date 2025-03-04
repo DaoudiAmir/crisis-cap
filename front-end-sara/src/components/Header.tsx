@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useAuth } from "../context/AuthContext";
 import { useRouter } from "next/router";
-import { FaBell, FaSearch, FaMoon, FaSun, FaSignOutAlt } from "react-icons/fa";
+import { FaBell, FaSearch, FaMoon, FaSun, FaSignOutAlt, FaUser, FaCog, FaUserCircle } from "react-icons/fa";
 
 const Header = () => {
   const { user, logout } = useAuth();
@@ -98,7 +99,11 @@ const Header = () => {
             {router.pathname === "/equipment" && "Équipements"}
             {router.pathname === "/analytics" && "Statistiques"}
             {router.pathname === "/settings" && "Paramètres"}
-            {router.pathname.startsWith("/profile") && "Profil"}
+            {router.pathname === "/profile" && "Mon Profil"}
+            {router.pathname === "/training" && "Centre de Formation"}
+            {router.pathname === "/support" && "Aide et Support"}
+            {router.pathname === "/resources" && "Centre de Ressources"}
+            {router.pathname === "/about" && "À Propos"}
           </h1>
           <p className="text-sm opacity-70">
             {currentTime} | {user?.station?.name || "Station non assignée"}
@@ -172,15 +177,34 @@ const Header = () => {
             </div>
           </div>
           
-          {/* Logout button */}
-          <button 
-            className="btn btn-circle btn-ghost" 
-            onClick={handleLogout}
-            aria-label="Se déconnecter"
-            title="Se déconnecter"
-          >
-            <FaSignOutAlt />
-          </button>
+          {/* User Profile Dropdown */}
+          <div className="dropdown dropdown-end">
+            <label tabIndex={0} className="btn btn-circle btn-ghost avatar placeholder">
+              <div className="bg-neutral text-neutral-content rounded-full w-10">
+                <span>{user?.firstName?.charAt(0) || ""}{user?.lastName?.charAt(0) || ""}</span>
+              </div>
+            </label>
+            <ul tabIndex={0} className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
+              <li>
+                <Link href="/profile" className="flex items-center">
+                  <FaUserCircle className="mr-2" />
+                  Mon Profil
+                </Link>
+              </li>
+              <li>
+                <Link href="/settings" className="flex items-center">
+                  <FaCog className="mr-2" />
+                  Paramètres
+                </Link>
+              </li>
+              <li>
+                <button onClick={handleLogout} className="flex items-center text-error">
+                  <FaSignOutAlt className="mr-2" />
+                  Déconnexion
+                </button>
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
     </header>
