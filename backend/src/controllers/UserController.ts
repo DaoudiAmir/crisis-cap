@@ -432,6 +432,35 @@ class UserController {
       next(err);
     }
   }
+
+  // @route   GET /api/v1/users/:id/status
+  // @desc    Get user status
+  // @access  Private
+  async getUserStatus(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.params.id;
+      
+      const user = await UserService.getUserById(userId);
+      if (!user) {
+        throw new AppError('User not found', 404);
+      }
+      
+      // Create a status object with relevant information
+      const userStatus = {
+        status: user.status,
+        location: user.location,
+        currentIntervention: user.currentIntervention,
+        team: user.team
+      };
+      
+      res.status(200).json({
+        status: 'success',
+        data: userStatus
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 export default new UserController();

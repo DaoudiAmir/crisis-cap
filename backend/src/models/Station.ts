@@ -1,5 +1,12 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
+export enum StationStatus {
+  OPERATIONAL = 'OPERATIONAL',
+  MAINTENANCE = 'MAINTENANCE',
+  EMERGENCY = 'EMERGENCY',
+  OFFLINE = 'OFFLINE'
+}
+
 export interface IStation extends Document {
   name: string;
   code: string;
@@ -21,6 +28,7 @@ export interface IStation extends Document {
     phone: string;
     email: string;
   };
+  status: StationStatus;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -89,6 +97,11 @@ const stationSchema = new Schema<IStation>(
         required: [true, 'Email is required'],
         lowercase: true,
       },
+    },
+    status: {
+      type: String,
+      enum: Object.values(StationStatus),
+      default: StationStatus.OPERATIONAL
     },
     isActive: {
       type: Boolean,

@@ -26,10 +26,12 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-  const collections = await mongoose.connection.db.collections();
+  const collections = await mongoose.connection.db?.collections();
   
-  for (let collection of collections) {
-    await collection.deleteMany({});
+  if (collections) {
+    for (let collection of collections) {
+      await collection.deleteMany({});
+    }
   }
 });
 
@@ -42,21 +44,28 @@ afterAll(async () => {
 
 // Global test helpers
 global.signToken = (userId: string, role: string = 'user') => {
+  const secret = process.env.JWT_SECRET || 'test-secret-key';
   return jwt.sign(
     { id: userId, role },
-    configJson.jwt.secret,
-    { expiresIn: configJson.jwt.expiresIn }
+    secret,
+    { expiresIn: '1h' }
   );
 };
 
+// Mock user creation for tests
 global.createTestUser = async (role: string = 'user') => {
-  const user = await mongoose.model('User').create({
-    name: 'Test User',
-    email: 'test@example.com',
-    password: 'password123',
-    role
-  });
+  // Create a mock user object
+  const user = {
+    _id: new mongoose.Types.ObjectId().toString(),
+    email: `test-${role}@example.com`,
+    firstName: 'Test',
+    lastName: 'User',
+    role: role,
+    password: 'hashedPassword123'
+  };
   
+  // Generate token for the user
   const token = global.signToken(user._id, role);
+  
   return { user, token };
 };

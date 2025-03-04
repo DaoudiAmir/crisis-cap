@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import mongoSanitize from 'express-mongo-sanitize';
+import cookieParser from 'cookie-parser';
 import { createServer } from 'http';
 import connectDB from './config/database';
 import socketService from './services/SocketService';
@@ -23,10 +24,20 @@ connectDB();
 
 // Security middleware
 app.use(helmet());
+
+// CORS configuration
+const clientUrl = process.env.CLIENT_URL || 'http://localhost:3001';
+console.info('Client URL:', clientUrl);
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
-  credentials: true
+  origin: clientUrl,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
+
+// Cookie parser middleware
+app.use(cookieParser());
 
 // Rate limiting
 const limiter = rateLimit({

@@ -2,22 +2,13 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { UserRole } from '../models/User';
 import AppError from '../utils/AppError';
+import User from '../models/User';
 
 // Declare global augmentation for Express Request
 declare global {
   namespace Express {
     interface Request {
-      user?: {
-        _id: string;
-        role: UserRole;
-        isActive: boolean;
-        firstName: string;
-        lastName: string;
-        email: string;
-        badgeNumber: string;
-        station: string;
-        department: string;
-      };
+      user?: any;
     }
   }
 }
@@ -28,43 +19,53 @@ export const protect = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    // 1) Check if token exists
+    let token;
+    
+    // 1) Check if token exists in Authorization header or cookies
     const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      throw new AppError('Not authenticated. Please log in.', 401);
+    
+    if (authHeader?.startsWith('Bearer ')) {
+      // Get token from Authorization header
+      token = authHeader.split(' ')[1];
+    } else if (req.cookies && req.cookies.jwt && req.cookies.jwt !== 'logged-out') {
+      // Get token from cookie
+      token = req.cookies.jwt;
     }
-
-    const token = authHeader.split(' ')[1];
+    
+    if (!token) {
+      console.log('No token found in request');
+      return next(new AppError('Not authenticated. Please log in.', 401));
+    }
 
     // 2) Verify token
-    const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret) {
-      throw new AppError('JWT secret is not configured', 500);
-    }
-
-    const decoded = jwt.verify(token, jwtSecret) as {
-      _id: string;
-      role: UserRole;
-      isActive: boolean;
-      firstName: string;
-      lastName: string;
-      email: string;
-      badgeNumber: string;
-      station: string;
-      department: string;
-    };
+    const jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
     
-    req.user = decoded;
-
-    next();
-  } catch (err: any) {
-    if (err.name === 'JsonWebTokenError') {
-      next(new AppError('Invalid token. Please log in again.', 401));
-    } else if (err.name === 'TokenExpiredError') {
-      next(new AppError('Token expired. Please log in again.', 401));
-    } else {
-      next(err);
+    try {
+      const decoded = jwt.verify(token, jwtSecret) as { id: string; role: UserRole };
+      
+      // 3) Check if user still exists
+      const currentUser = await User.findById(decoded.id);
+      if (!currentUser) {
+        return next(new AppError('The user belonging to this token no longer exists.', 401));
+      }
+      
+      // 4) Set user in request
+      req.user = currentUser;
+      
+      next();
+    } catch (jwtError: any) {
+      console.log('JWT verification error:', jwtError.name, jwtError.message);
+      if (jwtError.name === 'JsonWebTokenError') {
+        return next(new AppError('Invalid token. Please log in again.', 401));
+      } else if (jwtError.name === 'TokenExpiredError') {
+        return next(new AppError('Token expired. Please log in again.', 401));
+      } else {
+        return next(jwtError);
+      }
     }
+  } catch (err: any) {
+    console.error('Authentication error:', err);
+    return next(err);
   }
 };
 

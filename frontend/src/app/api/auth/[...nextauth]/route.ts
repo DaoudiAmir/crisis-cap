@@ -1,6 +1,4 @@
 import NextAuth from "next-auth"
-import GoogleProvider from "next-auth/providers/google"
-import AzureADProvider from "next-auth/providers/azure-ad"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { MongoDBAdapter } from "@auth/mongodb-adapter"
 import clientPromise from "@/lib/mongodb"
@@ -9,15 +7,6 @@ import { authApi } from "@/lib/api"
 export const authOptions = {
   adapter: MongoDBAdapter(clientPromise),
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
-    AzureADProvider({
-      clientId: process.env.AZURE_AD_CLIENT_ID!,
-      clientSecret: process.env.AZURE_AD_CLIENT_SECRET!,
-      tenantId: process.env.AZURE_AD_TENANT_ID,
-    }),
     CredentialsProvider({
       name: "Credentials",
       credentials: {
@@ -43,27 +32,25 @@ export const authOptions = {
     strategy: "jwt",
   },
   callbacks: {
-    async jwt({ token, user, account }: any) {
+    async jwt({ token, user, account }) {
       if (account && user) {
         return {
           ...token,
           accessToken: user.token,
           role: user.role,
+          status: user.status,
           badgeNumber: user.badgeNumber,
-          station: user.station,
-          department: user.department,
         }
       }
       return token
     },
-    async session({ session, token }: any) {
+    async session({ session, token }) {
       session.user.role = token.role
+      session.user.status = token.status
       session.user.badgeNumber = token.badgeNumber
-      session.user.station = token.station
-      session.user.department = token.department
-      session.accessToken = token.accessToken
+      session.user.accessToken = token.accessToken
       return session
-    },
+    }
   },
   pages: {
     signIn: "/login",

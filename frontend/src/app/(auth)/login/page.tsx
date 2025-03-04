@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -12,11 +12,12 @@ import { Label } from "@/components/ui/label"
 import { useAuth } from "@/lib/auth"
 import { authApi } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowRight, Loader2 } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { ArrowRight, Loader2, AlertCircle } from "lucide-react"
 
 const loginSchema = z.object({
-  email: z.string().email("Please enter a valid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  email: z.string().email("Veuillez entrer une adresse e-mail valide"),
+  password: z.string().min(8, "Le mot de passe doit contenir au moins 8 caractères"),
 })
 
 type LoginForm = z.infer<typeof loginSchema>
@@ -25,6 +26,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string>("")
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { login } = useAuth()
 
   const {
@@ -42,83 +44,96 @@ export default function LoginPage() {
       
       const response = await authApi.login(data)
       login(response.user, response.token)
-      router.push("/dashboard")
+      
+      // Redirect to the original destination or dashboard
+      const from = searchParams.get('from')
+      router.push(from || "/dashboard")
+      router.refresh()
     } catch (err: any) {
-      setError(err.response?.data?.message || "An error occurred during login")
+      setError(err.response?.data?.message || "Une erreur s'est produite lors de la connexion")
     } finally {
       setIsLoading(false)
     }
   }
 
   return (
-    <div className="container flex h-screen w-screen flex-col items-center justify-center">
-      <Card className="w-full max-w-lg">
+    <div className="flex min-h-screen items-center justify-center p-4 bg-gray-50">
+      <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">Sign in</CardTitle>
+          <CardTitle className="text-2xl font-bold">Connexion</CardTitle>
           <CardDescription>
-            Enter your email and password to access your account
+            Entrez vos identifiants pour accéder à votre compte
           </CardDescription>
         </CardHeader>
-        <form onSubmit={handleSubmit(onSubmit)}>
-          <CardContent className="space-y-4">
+        <CardContent>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Adresse e-mail</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="john.doe@example.com"
+                placeholder="exemple@pompiers.fr"
                 {...register("email")}
+                disabled={isLoading}
               />
               {errors.email && (
                 <p className="text-sm text-red-500">{errors.email.message}</p>
               )}
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">Mot de passe</Label>
               <Input
                 id="password"
                 type="password"
                 {...register("password")}
+                disabled={isLoading}
               />
               {errors.password && (
                 <p className="text-sm text-red-500">{errors.password.message}</p>
               )}
             </div>
-            <div className="flex items-center justify-between">
-              <Link
-                href="/forgot-password"
-                className="text-sm text-primary underline-offset-4 hover:underline"
-              >
-                Forgot your password?
-              </Link>
-            </div>
-            {error && (
-              <div className="rounded-md bg-red-50 p-3">
-                <p className="text-sm text-red-500">{error}</p>
-              </div>
-            )}
-          </CardContent>
-          <CardFooter className="flex flex-col space-y-4">
+
             <Button
               type="submit"
               className="w-full"
               disabled={isLoading}
             >
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Sign in
-              <ArrowRight className="ml-2 h-4 w-4" />
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Connexion en cours...
+                </>
+              ) : (
+                <>
+                  Se connecter
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </>
+              )}
             </Button>
-            <p className="text-center text-sm text-muted-foreground">
-              Don&apos;t have an account?{" "}
-              <Link
-                href="/register"
-                className="text-primary underline-offset-4 transition-colors hover:underline"
-              >
-                Create one
-              </Link>
-            </p>
-          </CardFooter>
-        </form>
+          </form>
+        </CardContent>
+        <CardFooter className="flex flex-col space-y-4">
+          <div className="text-sm text-gray-500 text-center">
+            Vous n'avez pas encore de compte ?{" "}
+            <Link href="/register" className="text-primary hover:underline">
+              Créer un compte
+            </Link>
+          </div>
+          <Link
+            href="/forgot-password"
+            className="text-sm text-gray-500 hover:text-primary hover:underline text-center"
+          >
+            Mot de passe oublié ?
+          </Link>
+        </CardFooter>
       </Card>
     </div>
   )

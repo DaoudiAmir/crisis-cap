@@ -1,0 +1,850 @@
+{
+    "info": {
+        "_postman_id": "f8a9e5d7-6b2c-4e8f-9a1d-3e5f7c8d9b0a",
+        "name": "Crisis-Cap API",
+        "description": "API collection for testing the Crisis-Cap backend",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [{
+        "key": "baseUrl",
+        "value": "http://localhost:3000/api",
+        "type": "string"
+    }],
+    "item": [{
+                "name": "Authentication",
+                "item": [{
+                        "name": "Login",
+                        "event": [{
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "const response = pm.response.json();",
+                                    "if (response.token) {",
+                                    "    pm.environment.set('token', response.token);",
+                                    "    pm.test(\"Token received and saved\", function() {",
+                                    "        pm.expect(response.token).to.be.a('string');",
+                                    "    });",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }],
+                        "request": {
+                            "method": "POST",
+                            "header": [{
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }],
+                            "body": {
+                                "mode": "raw",
+                                "raw": "{\n    \"email\": \"admin@example.com\",\n    \"password\": \"Password123!\"\n}"
+                            },
+                            "url": {
+                                "raw": "{{baseUrl}}/auth/login",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["auth", "login"]
+                            },
+                            "description": "Authenticate a user and receive a JWT token"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Get Current User",
+                        "request": {
+                            "method": "GET",
+                            "header": [{
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }],
+                            "url": {
+                                "raw": "{{baseUrl}}/auth/me",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["auth", "me"]
+                            },
+                            "description": "Get the currently authenticated user's information"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Refresh Token",
+                        "event": [{
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "const response = pm.response.json();",
+                                    "if (response.token) {",
+                                    "    pm.environment.set('token', response.token);",
+                                    "    pm.test(\"New token received and saved\", function() {",
+                                    "        pm.expect(response.token).to.be.a('string');",
+                                    "    });",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }],
+                        "request": {
+                            "method": "POST",
+                            "header": [{
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }],
+                            "url": {
+                                "raw": "{{baseUrl}}/auth/refresh",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["auth", "refresh"]
+                            },
+                            "description": "Refresh the JWT token"
+                        },
+                        "response": []
+                    }
+                ],
+                "description": "Authentication-related endpoints"
+            },
+            {
+                "name": "Users",
+                "item": [{
+                        "name": "Get All Users",
+                        "request": {
+                            "method": "GET",
+                            "header": [{
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }],
+                            "url": {
+                                "raw": "{{baseUrl}}/users?role=firefighter&station=123456789012",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["users"],
+                                "query": [{
+                                        "key": "role",
+                                        "value": "firefighter",
+                                        "description": "Filter by role"
+                                    },
+                                    {
+                                        "key": "station",
+                                        "value": "123456789012",
+                                        "description": "Filter by station ID"
+                                    }
+                                ]
+                            },
+                            "description": "Get all users with optional filtering"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Get User by ID",
+                        "request": {
+                            "method": "GET",
+                            "header": [{
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }],
+                            "url": {
+                                "raw": "{{baseUrl}}/users/{{userId}}",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["users", "{{userId}}"]
+                            },
+                            "description": "Get a specific user by ID"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Create User",
+                        "request": {
+                            "method": "POST",
+                            "header": [{
+                                    "key": "Authorization",
+                                    "value": "Bearer {{token}}"
+                                },
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": {
+                                "mode": "raw",
+                                "raw": "{\n    \"firstName\": \"John\",\n    \"lastName\": \"Doe\",\n    \"email\": \"john.doe@example.com\",\n    \"password\": \"Password123!\",\n    \"role\": \"sapeur-pompier\",\n    \"badgeNumber\": \"FF12345\",\n    \"station\": \"60d5ec9d1c9d440000d7a1bc\",\n    \"department\": \"Paris\",\n    \"region\": \"60d5ec9d1c9d440000d7a1bd\",\n    \"specializations\": [\"rescue\", \"medical\"],\n    \"certifications\": [\n        {\n            \"name\": \"First Aid\",\n            \"issuedDate\": \"2023-01-01\",\n            \"expiryDate\": \"2025-01-01\"\n        }\n    ],\n    \"contactInfo\": {\n        \"phone\": \"+33123456789\",\n        \"emergencyContact\": {\n            \"name\": \"Jane Doe\",\n            \"relationship\": \"Spouse\",\n            \"phone\": \"+33987654321\"\n        }\n    }\n}"
+                            },
+                            "url": {
+                                "raw": "{{baseUrl}}/users",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["users"]
+                            },
+                            "description": "Create a new user (admin only)"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Update User",
+                        "request": {
+                            "method": "PUT",
+                            "header": [{
+                                    "key": "Authorization",
+                                    "value": "Bearer {{token}}"
+                                },
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": {
+                                "mode": "raw",
+                                "raw": "{\n    \"firstName\": \"John\",\n    \"lastName\": \"Smith\",\n    \"specializations\": [\"rescue\", \"medical\", \"hazmat\"],\n    \"contactInfo\": {\n        \"phone\": \"+33123456789\"\n    }\n}"
+                            },
+                            "url": {
+                                "raw": "{{baseUrl}}/users/{{userId}}",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["users", "{{userId}}"]
+                            },
+                            "description": "Update a user's information"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Delete User",
+                        "request": {
+                            "method": "DELETE",
+                            "header": [{
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }],
+                            "url": {
+                                "raw": "{{baseUrl}}/users/{{userId}}",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["users", "{{userId}}"]
+                            },
+                            "description": "Delete a user (admin only)"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Update User Status",
+                        "request": {
+                            "method": "PATCH",
+                            "header": [{
+                                    "key": "Authorization",
+                                    "value": "Bearer {{token}}"
+                                },
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": {
+                                "mode": "raw",
+                                "raw": "{\n    \"status\": \"on_duty\"\n}"
+                            },
+                            "url": {
+                                "raw": "{{baseUrl}}/users/{{userId}}/status",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["users", "{{userId}}", "status"]
+                            },
+                            "description": "Update a user's status"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Update User Location",
+                        "request": {
+                            "method": "PATCH",
+                            "header": [{
+                                    "key": "Authorization",
+                                    "value": "Bearer {{token}}"
+                                },
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": {
+                                "mode": "raw",
+                                "raw": "{\n    \"coordinates\": [2.3522, 48.8566]\n}"
+                            },
+                            "url": {
+                                "raw": "{{baseUrl}}/users/{{userId}}/location",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["users", "{{userId}}", "location"]
+                            },
+                            "description": "Update a user's location"
+                        },
+                        "response": []
+                    }
+                ],
+                "description": "User management endpoints"
+            },
+            {
+                "name": "Interventions",
+                "item": [{
+                        "name": "Get All Interventions",
+                        "request": {
+                            "method": "GET",
+                            "header": [{
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }],
+                            "url": {
+                                "raw": "{{baseUrl}}/interventions?status=in_progress&type=fire&priority=high",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["interventions"],
+                                "query": [{
+                                        "key": "status",
+                                        "value": "in_progress",
+                                        "description": "Filter by status"
+                                    },
+                                    {
+                                        "key": "type",
+                                        "value": "fire",
+                                        "description": "Filter by type"
+                                    },
+                                    {
+                                        "key": "priority",
+                                        "value": "high",
+                                        "description": "Filter by priority"
+                                    }
+                                ]
+                            },
+                            "description": "Get all interventions with optional filtering"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Get Intervention by ID",
+                        "request": {
+                            "method": "GET",
+                            "header": [{
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }],
+                            "url": {
+                                "raw": "{{baseUrl}}/interventions/{{interventionId}}",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["interventions", "{{interventionId}}"]
+                            },
+                            "description": "Get a specific intervention by ID"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Create Intervention",
+                        "request": {
+                            "method": "POST",
+                            "header": [{
+                                    "key": "Authorization",
+                                    "value": "Bearer {{token}}"
+                                },
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": {
+                                "mode": "raw",
+                                "raw": "{\n    \"title\": \"Building Fire\",\n    \"description\": \"Fire reported in commercial building\",\n    \"type\": \"fire\",\n    \"priority\": \"high\",\n    \"location\": {\n        \"coordinates\": [2.3522, 48.8566],\n        \"address\": \"123 Example Street, Paris\"\n    },\n    \"region\": \"60d5ec9d1c9d440000d7a1bd\",\n    \"station\": \"60d5ec9d1c9d440000d7a1bc\",\n    \"commander\": \"60d5ec9d1c9d440000d7a1be\",\n    \"riskLevel\": \"high\",\n    \"hazards\": [\"structural\", \"chemical\"],\n    \"weatherConditions\": {\n        \"temperature\": 25,\n        \"windSpeed\": 10,\n        \"windDirection\": \"NE\",\n        \"precipitation\": \"none\",\n        \"visibility\": \"clear\"\n    }\n}"
+                            },
+                            "url": {
+                                "raw": "{{baseUrl}}/interventions",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["interventions"]
+                            },
+                            "description": "Create a new intervention (officer+ only)"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Update Intervention",
+                        "request": {
+                            "method": "PUT",
+                            "header": [{
+                                    "key": "Authorization",
+                                    "value": "Bearer {{token}}"
+                                },
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": {
+                                "mode": "raw",
+                                "raw": "{\n    \"title\": \"Updated Building Fire\",\n    \"description\": \"Updated description of the fire\",\n    \"priority\": \"critical\",\n    \"riskLevel\": \"extreme\",\n    \"hazards\": [\"structural\", \"chemical\", \"explosive\"]\n}"
+                            },
+                            "url": {
+                                "raw": "{{baseUrl}}/interventions/{{interventionId}}",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["interventions", "{{interventionId}}"]
+                            },
+                            "description": "Update an intervention's information"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Update Intervention Status",
+                        "request": {
+                            "method": "PATCH",
+                            "header": [{
+                                    "key": "Authorization",
+                                    "value": "Bearer {{token}}"
+                                },
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": {
+                                "mode": "raw",
+                                "raw": "{\n    \"status\": \"on_site\"\n}"
+                            },
+                            "url": {
+                                "raw": "{{baseUrl}}/interventions/{{interventionId}}/status",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["interventions", "{{interventionId}}", "status"]
+                            },
+                            "description": "Update an intervention's status"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Add Resource to Intervention",
+                        "request": {
+                            "method": "POST",
+                            "header": [{
+                                    "key": "Authorization",
+                                    "value": "Bearer {{token}}"
+                                },
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": {
+                                "mode": "raw",
+                                "raw": "{\n    \"resourceId\": \"60d5ec9d1c9d440000d7a1bf\",\n    \"resourceType\": \"User\",\n    \"role\": \"firefighter\"\n}"
+                            },
+                            "url": {
+                                "raw": "{{baseUrl}}/interventions/{{interventionId}}/resources",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["interventions", "{{interventionId}}", "resources"]
+                            },
+                            "description": "Add a resource (user or vehicle) to an intervention"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Remove Resource from Intervention",
+                        "request": {
+                            "method": "DELETE",
+                            "header": [{
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }],
+                            "url": {
+                                "raw": "{{baseUrl}}/interventions/{{interventionId}}/resources/{{resourceId}}",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["interventions", "{{interventionId}}", "resources", "{{resourceId}}"]
+                            },
+                            "description": "Remove a resource from an intervention"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Add Timeline Event",
+                        "request": {
+                            "method": "POST",
+                            "header": [{
+                                    "key": "Authorization",
+                                    "value": "Bearer {{token}}"
+                                },
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": {
+                                "mode": "raw",
+                                "raw": "{\n    \"event\": \"Fire containment started\",\n    \"details\": \"North wing containment in progress\"\n}"
+                            },
+                            "url": {
+                                "raw": "{{baseUrl}}/interventions/{{interventionId}}/timeline",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["interventions", "{{interventionId}}", "timeline"]
+                            },
+                            "description": "Add a timeline event to an intervention"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Add Note",
+                        "request": {
+                            "method": "POST",
+                            "header": [{
+                                    "key": "Authorization",
+                                    "value": "Bearer {{token}}"
+                                },
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": {
+                                "mode": "raw",
+                                "raw": "{\n    \"content\": \"Structural engineer requested for assessment\"\n}"
+                            },
+                            "url": {
+                                "raw": "{{baseUrl}}/interventions/{{interventionId}}/notes",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["interventions", "{{interventionId}}", "notes"]
+                            },
+                            "description": "Add a note to an intervention"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Delete Intervention",
+                        "request": {
+                            "method": "DELETE",
+                            "header": [{
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }],
+                            "url": {
+                                "raw": "{{baseUrl}}/interventions/{{interventionId}}",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["interventions", "{{interventionId}}"]
+                            },
+                            "description": "Delete an intervention (officer+ only)"
+                        },
+                        "response": []
+                    }
+                ],
+                "description": "Intervention management endpoints"
+            },
+            {
+                "name": "Teams",
+                "item": [{
+                        "name": "Get All Teams",
+                        "request": {
+                            "method": "GET",
+                            "header": [{
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }],
+                            "url": {
+                                "raw": "{{baseUrl}}/teams?station=123456789012&status=active",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["teams"],
+                                "query": [{
+                                        "key": "station",
+                                        "value": "123456789012",
+                                        "description": "Filter by station ID"
+                                    },
+                                    {
+                                        "key": "status",
+                                        "value": "active",
+                                        "description": "Filter by status"
+                                    }
+                                ]
+                            },
+                            "description": "Get all teams with optional filtering"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Get Team by ID",
+                        "request": {
+                            "method": "GET",
+                            "header": [{
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }],
+                            "url": {
+                                "raw": "{{baseUrl}}/teams/{{teamId}}",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["teams", "{{teamId}}"]
+                            },
+                            "description": "Get a specific team by ID"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Create Team",
+                        "request": {
+                            "method": "POST",
+                            "header": [{
+                                    "key": "Authorization",
+                                    "value": "Bearer {{token}}"
+                                },
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": {
+                                "mode": "raw",
+                                "raw": "{\n    \"name\": \"Rescue Team Alpha\",\n    \"type\": \"rescue\",\n    \"station\": \"60d5ec9d1c9d440000d7a1bc\",\n    \"leader\": \"60d5ec9d1c9d440000d7a1be\",\n    \"members\": [\n        \"60d5ec9d1c9d440000d7a1bf\",\n        \"60d5ec9d1c9d440000d7a1c0\"\n    ],\n    \"vehicle\": \"60d5ec9d1c9d440000d7a1c1\"\n}"
+                            },
+                            "url": {
+                                "raw": "{{baseUrl}}/teams",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["teams"]
+                            },
+                            "description": "Create a new team (officer+ only)"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Update Team",
+                        "request": {
+                            "method": "PUT",
+                            "header": [{
+                                    "key": "Authorization",
+                                    "value": "Bearer {{token}}"
+                                },
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": {
+                                "mode": "raw",
+                                "raw": "{\n    \"name\": \"Rescue Team Bravo\",\n    \"type\": \"rescue\",\n    \"status\": \"active\"\n}"
+                            },
+                            "url": {
+                                "raw": "{{baseUrl}}/teams/{{teamId}}",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["teams", "{{teamId}}"]
+                            },
+                            "description": "Update a team's information"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Add Member to Team",
+                        "request": {
+                            "method": "POST",
+                            "header": [{
+                                    "key": "Authorization",
+                                    "value": "Bearer {{token}}"
+                                },
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": {
+                                "mode": "raw",
+                                "raw": "{\n    \"userId\": \"60d5ec9d1c9d440000d7a1c2\",\n    \"role\": \"firefighter\"\n}"
+                            },
+                            "url": {
+                                "raw": "{{baseUrl}}/teams/{{teamId}}/members",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["teams", "{{teamId}}", "members"]
+                            },
+                            "description": "Add a member to a team"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Remove Member from Team",
+                        "request": {
+                            "method": "DELETE",
+                            "header": [{
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }],
+                            "url": {
+                                "raw": "{{baseUrl}}/teams/{{teamId}}/members/{{userId}}",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["teams", "{{teamId}}", "members", "{{userId}}"]
+                            },
+                            "description": "Remove a member from a team"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Assign Vehicle to Team",
+                        "request": {
+                            "method": "POST",
+                            "header": [{
+                                    "key": "Authorization",
+                                    "value": "Bearer {{token}}"
+                                },
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": {
+                                "mode": "raw",
+                                "raw": "{\n    \"vehicleId\": \"60d5ec9d1c9d440000d7a1c3\"\n}"
+                            },
+                            "url": {
+                                "raw": "{{baseUrl}}/teams/{{teamId}}/vehicle",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["teams", "{{teamId}}", "vehicle"]
+                            },
+                            "description": "Assign a vehicle to a team"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Delete Team",
+                        "request": {
+                            "method": "DELETE",
+                            "header": [{
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }],
+                            "url": {
+                                "raw": "{{baseUrl}}/teams/{{teamId}}",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["teams", "{{teamId}}"]
+                            },
+                            "description": "Delete a team (officer+ only)"
+                        },
+                        "response": []
+                    }
+                ],
+                "description": "Team management endpoints"
+            },
+            {
+                "name": "Vehicles",
+                "item": [{
+                        "name": "Get All Vehicles",
+                        "request": {
+                            "method": "GET",
+                            "header": [{
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }],
+                            "url": {
+                                "raw": "{{baseUrl}}/vehicles?type=fire_truck&status=available",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["vehicles"],
+                                "query": [{
+                                        "key": "type",
+                                        "value": "fire_truck",
+                                        "description": "Filter by vehicle type"
+                                    },
+                                    {
+                                        "key": "status",
+                                        "value": "available",
+                                        "description": "Filter by status"
+                                    }
+                                ]
+                            },
+                            "description": "Get all vehicles with optional filtering"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Get Vehicle by ID",
+                        "request": {
+                            "method": "GET",
+                            "header": [{
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }],
+                            "url": {
+                                "raw": "{{baseUrl}}/vehicles/{{vehicleId}}",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["vehicles", "{{vehicleId}}"]
+                            },
+                            "description": "Get a specific vehicle by ID"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Create Vehicle",
+                        "request": {
+                            "method": "POST",
+                            "header": [{
+                                    "key": "Authorization",
+                                    "value": "Bearer {{token}}"
+                                },
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": {
+                                "mode": "raw",
+                                "raw": "{\n    \"callSign\": \"FT-123\",\n    \"type\": \"fire_truck\",\n    \"model\": \"Renault Premium 460\",\n    \"capacity\": {\n        \"water\": 10000,\n        \"foam\": 1000,\n        \"personnel\": 6\n    },\n    \"features\": [\"ladder\", \"pump\", \"hose\"],\n    \"station\": \"60d5ec9d1c9d440000d7a1bc\",\n    \"region\": \"60d5ec9d1c9d440000d7a1bd\",\n    \"licensePlate\": \"AB-123-CD\",\n    \"maintenanceStatus\": {\n        \"lastMaintenance\": \"2023-01-01\",\n        \"nextMaintenance\": \"2023-07-01\",\n        \"issues\": []\n    }\n}"
+                            },
+                            "url": {
+                                "raw": "{{baseUrl}}/vehicles",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["vehicles"]
+                            },
+                            "description": "Create a new vehicle (logistics+ only)"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Update Vehicle",
+                        "request": {
+                            "method": "PUT",
+                            "header": [{
+                                    "key": "Authorization",
+                                    "value": "Bearer {{token}}"
+                                },
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": {
+                                "mode": "raw",
+                                "raw": "{\n    \"status\": \"maintenance\",\n    \"maintenanceStatus\": {\n        \"issues\": [\"Brake system inspection\", \"Engine overhaul\"]\n    }\n}"
+                            },
+                            "url": {
+                                "raw": "{{baseUrl}}/vehicles/{{vehicleId}}",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["vehicles", "{{vehicleId}}"]
+                            },
+                            "description": "Update a vehicle's information"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Update Vehicle Location",
+                        "request": {
+                            "method": "PATCH",
+                            "header": [{
+                                    "key": "Authorization",
+                                    "value": "Bearer {{token}}"
+                                },
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": {
+                                "mode": "raw",
+                                "raw": "{\n    \"coordinates\": [2.3522, 48.8566]\n}"
+                            },
+                            "url": {
+                                "raw": "{{baseUrl}}/vehicles/{{vehicleId}}/location",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["vehicles", "{{vehicleId}}", "location"]
+                            },
+                            "description": "Update a vehicle's location"
+                        },
+                        "response": []
+                    },
+                    {
+                        "name": "Delete Vehicle",
+                        "request": {
+                            "method": "DELETE",
+                            "header": [{
+                                "key": "Authorization",
+                                "value": "Bearer {{token}}"
+                            }],
+                            "url": {
+                                "raw": "{{baseUrl}}/vehicles/{{vehicleId}}",
+                                "host": ["{{baseUrl}}"],
+                                "path": ["vehicles", "{{vehicleId}}"]
+                            },
+                            "description": "Delete a vehicle (logistics+ only)"
+                        },
+                        "response": []
+                    }
+                }
+            ]

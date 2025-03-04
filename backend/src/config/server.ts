@@ -14,6 +14,8 @@ import userRoutes from '../routes/userRoutes';
 import stationRoutes from '../routes/stationRoutes';
 import teamRoutes from '../routes/teamRoutes';
 import equipmentRoutes from '../routes/equipmentRoutes';
+import authRoutes from '../routes/authRoutes';
+import interventionRoutes from '../routes/interventionRoutes';
 
 import { errorHandler, notFound } from '../middleware/errorHandler';
 import type { SocketService } from '../services/SocketService';
@@ -91,10 +93,12 @@ export class AppServer {
     });
 
     // API Routes
+    this.app.use('/api/auth', authRoutes);
     this.app.use('/api/v1/users', userRoutes);
     this.app.use('/api/v1/stations', stationRoutes);
     this.app.use('/api/v1/teams', teamRoutes);
     this.app.use('/api/v1/equipment', equipmentRoutes);
+    this.app.use('/api/v1/interventions', interventionRoutes);
 
     // 404 handler for undefined routes
     this.app.all('*', notFound);

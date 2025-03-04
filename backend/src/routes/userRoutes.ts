@@ -5,6 +5,7 @@ import { protect, restrictTo } from '../middleware/authMiddleware';
 import { validateRequest } from '../middleware/validateRequest';
 import { createUserSchema, loginSchema, updateUserSchema } from '../schemas/userSchema';
 import { UserRole } from '../models/User';
+import { getCurrentUser } from '../controllers/authController';
 
 const router = express.Router();
 
@@ -35,11 +36,14 @@ router.post('/login', validateRequest(loginSchema), UserController.login);
 router.use(protect); // Apply authentication middleware to all routes below
 
 // Routes accessible to all authenticated users
-router.get('/me', UserController.getProfile);
+router.get('/me', getCurrentUser);
 
 // User profile routes
 router.put('/profile', UserController.updateProfile);
 router.put('/password', UserController.changePassword);
+
+// User status
+router.get('/:id/status', UserController.getUserStatus);
 
 // Routes with role-based access
 router.post(

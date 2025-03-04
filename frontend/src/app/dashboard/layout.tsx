@@ -1,5 +1,6 @@
 import { DashboardNav } from "@/components/dashboard/nav";
 import { UserNav } from "@/components/dashboard/user-nav";
+import { SearchCommand } from "@/components/dashboard/search";
 import { ModeToggle } from "@/components/mode-toggle";
 
 export default function DashboardLayout({
@@ -21,7 +22,7 @@ export default function DashboardLayout({
           </div>
           <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
             <div className="w-full flex-1 md:w-auto md:flex-none">
-              {/* Add search functionality here */}
+              <SearchCommand />
             </div>
             <div className="flex items-center gap-2">
               <ModeToggle />

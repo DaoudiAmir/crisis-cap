@@ -2,10 +2,13 @@ import { z } from 'zod';
 
 // Intervention status enum
 export const InterventionStatus = z.enum([
-  'PENDING',
-  'IN_PROGRESS',
-  'COMPLETED',
-  'CANCELLED'
+  'pending',
+  'dispatched',
+  'en_route',
+  'on_site',
+  'in_progress',
+  'completed',
+  'cancelled'
 ]);
 
 // Priority level enum

@@ -28,15 +28,26 @@ class InterventionController {
   // @access  Private
   async getInterventions(req: Request, res: Response, next: NextFunction) {
     try {
-      const filters = {
-        status: req.query.status as InterventionStatus,
-        type: req.query.type as InterventionType,
-        priority: req.query.priority as InterventionPriority,
-        region: req.query.region as string,
-        station: req.query.station as string,
-        startDate: req.query.startDate as string,
-        endDate: req.query.endDate as string
-      };
+      const filters: any = {};
+      
+      // Handle status - can be a single value or comma-separated list
+      if (req.query.status) {
+        if (typeof req.query.status === 'string' && req.query.status.includes(',')) {
+          filters.status = req.query.status.split(',');
+        } else {
+          filters.status = req.query.status;
+        }
+      }
+      
+      // Handle other filter parameters
+      if (req.query.type) filters.type = req.query.type;
+      if (req.query.priority) filters.priority = req.query.priority;
+      if (req.query.region) filters.region = req.query.region;
+      if (req.query.station) filters.station = req.query.station;
+      if (req.query.startDate) filters.startDate = req.query.startDate;
+      if (req.query.endDate) filters.endDate = req.query.endDate;
+      if (req.query.limit) filters.limit = parseInt(req.query.limit as string);
+      if (req.query.sort) filters.sort = req.query.sort;
 
       const interventions = await InterventionService.getInterventions(filters);
       
@@ -224,6 +235,53 @@ class InterventionController {
         data: { interventions }
       });
     } catch (err) {
+      next(err);
+    }
+  }
+
+  // @route   GET /api/v1/interventions/recent
+  // @desc    Get recent interventions for dashboard
+  // @access  Private
+  async getRecentInterventions(req: Request, res: Response, next: NextFunction) {
+    try {
+      // Get the 5 most recent interventions
+      const interventions = await InterventionService.getInterventions({
+        limit: 5,
+        sort: '-createdAt'
+      }) || [];
+      
+      res.status(200).json({
+        status: 'success',
+        data: { interventions }
+      });
+    } catch (err) {
+      console.error("Recent interventions error:", err);
+      next(err);
+    }
+  }
+
+  // @route   GET /api/v1/interventions/active
+  // @desc    Get active interventions for map
+  // @access  Private
+  async getActiveInterventions(req: Request, res: Response, next: NextFunction) {
+    try {
+      // Get active interventions (in progress, dispatched, etc.)
+      const interventions = await InterventionService.getInterventions({
+        status: [
+          InterventionStatus.IN_PROGRESS,
+          InterventionStatus.DISPATCHED,
+          InterventionStatus.PENDING,
+          InterventionStatus.EN_ROUTE,
+          InterventionStatus.ON_SITE
+        ]
+      }) || [];
+      
+      res.status(200).json({
+        status: 'success',
+        data: { interventions }
+      });
+    } catch (err) {
+      console.error("Active interventions error:", err);
       next(err);
     }
   }

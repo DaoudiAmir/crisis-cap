@@ -81,6 +81,17 @@ router
     InterventionController.getTimeline
   );
 
+// Dashboard routes - No validation required for these endpoints
+router.get(
+  '/recent',
+  InterventionController.getRecentInterventions
+);
+
+router.get(
+  '/active',
+  InterventionController.getActiveInterventions
+);
+
 // Statistics
 router.get(
   '/stats',

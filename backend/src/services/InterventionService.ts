@@ -35,13 +35,15 @@ interface UpdateInterventionDTO {
 }
 
 interface InterventionFilters {
-  status?: InterventionStatus;
+  status?: InterventionStatus | InterventionStatus[];
   type?: InterventionType;
   priority?: string;
   region?: string;
   station?: string;
   startDate?: string;
   endDate?: string;
+  limit?: number;
+  sort?: string;
 }
 
 class InterventionService {
@@ -173,7 +175,11 @@ class InterventionService {
       const query: any = {};
 
       if (filters.status) {
-        query.status = filters.status;
+        if (Array.isArray(filters.status)) {
+          query.status = { $in: filters.status };
+        } else {
+          query.status = filters.status;
+        }
       }
       if (filters.type) {
         query.type = filters.type;
@@ -194,12 +200,30 @@ class InterventionService {
         query.endTime = { $lte: new Date(filters.endDate) };
       }
 
-      const interventions = await Intervention.find(query)
+      // Determine sort order
+      const sortOption: any = {};
+      if (filters.sort) {
+        // Handle sort strings like '-createdAt'
+        const sortField = filters.sort.startsWith('-') ? filters.sort.substring(1) : filters.sort;
+        const sortDirection = filters.sort.startsWith('-') ? -1 : 1;
+        sortOption[sortField] = sortDirection;
+      } else {
+        // Default sort by startTime descending
+        sortOption.startTime = -1;
+      }
+
+      let interventionsQuery = Intervention.find(query)
         .populate('resources.resourceId')
         .populate('region')
         .populate('station')
-        .sort({ startTime: -1 });
+        .sort(sortOption);
 
+      // Apply limit if specified
+      if (filters.limit) {
+        interventionsQuery = interventionsQuery.limit(filters.limit);
+      }
+
+      const interventions = await interventionsQuery.exec();
       return interventions;
     } catch (error) {
       console.error('Get interventions error:', error);
