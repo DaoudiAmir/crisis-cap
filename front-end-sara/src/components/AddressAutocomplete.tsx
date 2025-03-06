@@ -110,73 +110,84 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
 
   // Function to handle address selection
   const handleAddressSelect = async (selectedAddress: string) => {
-    setAddress(selectedAddress);
-    setShowSuggestions(false);
-    setLoading(true);
-
     try {
-      // Geocode the selected address to get coordinates
-      const geocodeResponse = await geocodeAddress(selectedAddress);
-      const geocodeData: GeocodingResult = geocodeResponse;
-
-      if (geocodeData && geocodeData.latitude && geocodeData.longitude) {
-        const { latitude, longitude } = geocodeData;
+      setAddress(selectedAddress);
+      setLoading(true);
+      setError(null);
+      
+      // Default coordinates (center of France)
+      let defaultCoordinates = [1.888334, 46.603354];
+      
+      try {
+        // Try to geocode the address
+        const geocodeResponse = await geocodeAddress(selectedAddress);
+        const geocodeData: GeocodingResult = geocodeResponse;
         
-        // Validate coordinates
-        if (!isNaN(latitude) && !isNaN(longitude)) {
-          console.log(`Geocoded coordinates for "${selectedAddress}": [${longitude}, ${latitude}]`);
+        if (geocodeData && geocodeData.latitude && geocodeData.longitude) {
+          const location = geocodeData;
           
-          // Update the location with valid coordinates
-          const updatedLocation = {
-            latitude,
-            longitude,
-            address: selectedAddress,
-            coordinates: [longitude, latitude] // Format as [longitude, latitude] for GeoJSON
-          };
-          
-          onAddressSelect(selectedAddress, updatedLocation);
+          // Ensure we have valid coordinates
+          if (location.longitude && location.latitude && 
+              !isNaN(Number(location.longitude)) && !isNaN(Number(location.latitude))) {
+            
+            // Format coordinates as [longitude, latitude] for GeoJSON
+            const coordinates = [Number(location.longitude), Number(location.latitude)];
+            
+            // Log successful geocoding
+            console.log('Geocoded address:', selectedAddress);
+            console.log('Coordinates:', coordinates);
+            
+            // Update the location with coordinates
+            const updatedLocation = {
+              latitude: Number(location.latitude),
+              longitude: Number(location.longitude),
+              address: selectedAddress,
+              coordinates: [Number(location.longitude), Number(location.latitude)] // Format as [longitude, latitude] for GeoJSON
+            };
+            
+            onAddressSelect(selectedAddress, updatedLocation);
+            
+            setLoading(false);
+            return;
+          } else {
+            console.warn('Invalid coordinates received from geocoding API:', location);
+          }
         } else {
-          console.error("Invalid coordinates returned from geocoding API:", geocodeData);
-          handleGeocodingError(selectedAddress, "Invalid coordinates returned from geocoding API");
+          console.warn('No results from geocoding API for address:', selectedAddress);
         }
-      } else {
-        console.error("Failed to geocode address:", selectedAddress);
-        handleGeocodingError(selectedAddress, "Failed to geocode address");
+      } catch (error) {
+        console.error('Error geocoding address:', error);
       }
+      
+      // If we reach here, geocoding failed or returned invalid coordinates
+      // Use default coordinates as fallback
+      console.warn(`Using default coordinates for address: ${selectedAddress}`);
+      
+      const fallbackLocation = {
+        latitude: defaultCoordinates[1],
+        longitude: defaultCoordinates[0],
+        address: selectedAddress,
+        coordinates: defaultCoordinates // Format as [longitude, latitude] for GeoJSON
+      };
+      
+      onAddressSelect(selectedAddress, fallbackLocation);
     } catch (error) {
-      console.error("Error geocoding address:", error);
-      handleGeocodingError(selectedAddress, "Error geocoding address");
+      console.error('Error in handleAddressSelect:', error);
+      setError('Failed to get coordinates for this address');
+      
+      // Even in case of error, still update with default coordinates
+      const fallbackLocation = {
+        latitude: defaultCoordinates[1],
+        longitude: defaultCoordinates[0],
+        address: selectedAddress,
+        coordinates: defaultCoordinates // Format as [longitude, latitude] for GeoJSON
+      };
+      
+      onAddressSelect(selectedAddress, fallbackLocation);
     } finally {
       setLoading(false);
+      setShowSuggestions(false);
     }
-  };
-
-  // Function to handle geocoding errors with fallback
-  const handleGeocodingError = (address: string, errorMessage: string) => {
-    console.warn(`${errorMessage}. Using fallback coordinates for: ${address}`);
-    
-    // Use France's geographical center as fallback coordinates
-    const fallbackLatitude = 46.603354;
-    const fallbackLongitude = 1.888334;
-    
-    // Update the location with fallback coordinates
-    const fallbackLocation = {
-      latitude: fallbackLatitude,
-      longitude: fallbackLongitude,
-      address: address,
-      coordinates: [fallbackLongitude, fallbackLatitude] // Format as [longitude, latitude] for GeoJSON
-    };
-    
-    onAddressSelect(address, fallbackLocation);
-    
-    // Show a toast or notification to the user
-    // toast({
-    //   title: "Localisation approximative",
-    //   description: "Impossible de trouver les coordonnées exactes. Utilisation de coordonnées par défaut.",
-    //   status: "warning",
-    //   duration: 5000,
-    //   isClosable: true,
-    // });
   };
 
   // Handle address input change

@@ -81,30 +81,24 @@ export interface Intervention {
 }
 
 export interface CreateInterventionPayload {
-  code?: string;
   title: string;
   description: string;
-  type: string;
+  type?: string;
   priority: string;
-  status?: string;
   location: {
     latitude?: number;
     longitude?: number;
-    address: string;
+    address?: string;
     coordinates?: [number, number]; // [longitude, latitude] for GeoJSON compatibility
   };
-  region?: string; // MongoDB ObjectId
-  station?: string; // MongoDB ObjectId
+  regionId?: string; // MongoDB ObjectId format
+  station?: string; // MongoDB ObjectId format
   startTime?: string; // ISO date string
-  commander?: string; // MongoDB ObjectId
-  createdBy?: string; // MongoDB ObjectId
-  riskLevel?: string; // 'low', 'medium', 'high', 'extreme'
+  estimatedDuration?: number; // Duration in minutes
+  commander?: string; // MongoDB ObjectId format for the commander (required by backend)
+  riskLevel?: 'low' | 'medium' | 'high' | 'extreme';
   hazards?: string[];
-  teams?: any[];
-  resources?: any[];
-  notes?: any[];
-  timeline?: any[];
-  transcripts?: any[];
+  status?: string;
 }
 
 export interface InterventionType {

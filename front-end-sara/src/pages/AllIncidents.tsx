@@ -8,7 +8,7 @@ import { InterventionType, CreateInterventionPayload } from "@/types/interventio
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 import { useAuth } from "@/context/AuthContext";
 import { FaSearch, FaPlus } from "react-icons/fa";
-import toast from "@/components/Toast";
+import { useToast } from "@/components/Toast";
 
 // Dynamically import the Map component with ssr: false to prevent "window is not defined" error
 const FranceMap = dynamic(
@@ -33,25 +33,43 @@ const AllIncidents = () => {
     description: "",
     type: "fire",
     priority: "MEDIUM",
-    riskLevel: "medium",
     location: {
       latitude: 46.603354,
       longitude: 1.888334,
       address: "",
       coordinates: [1.888334, 46.603354]
-    }
+    },
+    regionId: "507f1f77bcf86cd799439011", // Default region ID in MongoDB format
+    station: "507f1f77bcf86cd799439011", // Default station ID in MongoDB format
+    commander: "507f1f77bcf86cd799439011", // Default commander ID in MongoDB format
+    startTime: new Date().toISOString(),
+    estimatedDuration: 60, // Default 60 minutes
+    riskLevel: "medium",
+    hazards: [],
+    status: "pending"
   });
+
+  const toast = useToast();
 
   // Function to fetch all incidents
   const fetchIncidents = async () => {
     try {
       setLoading(true);
       const data = await getAllInterventions();
-      setIncidents(data);
-      setError(null);
+      console.log('Fetched incidents data:', data);
+      
+      // Ensure incidents is always an array
+      if (Array.isArray(data)) {
+        setIncidents(data);
+      } else {
+        console.error('Received non-array data for incidents:', data);
+        setIncidents([]);
+        setError("Received invalid data format from server");
+      }
     } catch (err) {
-      setError("Failed to load incidents. Please try again later.");
       console.error("Error fetching incidents:", err);
+      setIncidents([]);
+      setError("Failed to load incidents. Please try again later.");
     } finally {
       setLoading(false);
     }
@@ -119,12 +137,53 @@ const AllIncidents = () => {
         type: formData.type,
         priority: formData.priority,
         location: formData.location,
-        riskLevel: formData.riskLevel
+        regionId: formData.regionId,
+        station: formData.station,
+        commander: formData.commander,
+        startTime: formData.startTime,
+        estimatedDuration: formData.estimatedDuration,
+        riskLevel: formData.riskLevel,
+        status: formData.status
       });
 
       // Validate required fields
-      if (!formData.title || !formData.description || !formData.type || !formData.priority || !formData.location.address) {
+      if (!formData.title || !formData.description || !formData.priority || !formData.location.address) {
         setError("Please fill in all required fields");
+        toast({
+          title: "Validation Error",
+          description: "Please fill in all required fields",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Validate title length (3-200 characters)
+      if (formData.title.length < 3 || formData.title.length > 200) {
+        setError("Title must be between 3 and 200 characters");
+        toast({
+          title: "Validation Error",
+          description: "Title must be between 3 and 200 characters",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Validate description length (10-1000 characters)
+      if (formData.description.length < 10 || formData.description.length > 1000) {
+        setError("Description must be between 10 and 1000 characters");
+        toast({
+          title: "Validation Error",
+          description: "Description must be between 10 and 1000 characters",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+        });
         setLoading(false);
         return;
       }
@@ -136,167 +195,101 @@ const AllIncidents = () => {
           formData.location.coordinates.some(coord => coord === null || isNaN(Number(coord)))) {
         console.warn("Invalid coordinates detected:", formData.location.coordinates);
         
-        // Try to use the test function to diagnose API requirements
-        console.log("Running diagnostic test for intervention creation...");
-        const testResult = await testInterventionCreation();
-        console.log("Diagnostic test result:", testResult);
-        
-        if (testResult.success) {
-          // If test was successful, use the identified endpoint and payload structure
-          toast({
-            title: "Diagnostic test successful",
-            description: "Using the identified API structure for intervention creation",
-            status: "info",
-            duration: 5000,
-            isClosable: true,
-          });
-          
-          // Create intervention with the regular flow but using insights from the test
-          const newIntervention = await createIntervention({
-            title: formData.title,
-            description: formData.description,
-            type: formData.type,
-            priority: formData.priority,
-            location: {
-              ...formData.location,
-              // Ensure coordinates are never null
-              coordinates: Array.isArray(formData.location.coordinates) && 
-                           formData.location.coordinates.every(coord => coord !== null && !isNaN(Number(coord))) 
-                         ? formData.location.coordinates 
-                         : [2.3489889, 48.8616376], // Default to Paris coordinates
-            },
-            riskLevel: formData.riskLevel,
-            status: "pending",
-            startTime: new Date().toISOString(),
-          });
-          
-          if (newIntervention) {
-            toast({
-              title: "Intervention created",
-              description: "New intervention has been created successfully",
-              status: "success",
-              duration: 5000,
-              isClosable: true,
-            });
-            
-            // Reset form and refresh interventions
-            setFormData({
-              title: "",
-              description: "",
-              type: "fire",
-              priority: "MEDIUM",
-              riskLevel: "medium",
-              location: {
-                latitude: 46.603354,
-                longitude: 1.888334,
-                address: "",
-                coordinates: [1.888334, 46.603354]
-              }
-            });
-            fetchIncidents();
-            setIsModalOpen(false);
-          } else {
-            throw new Error("Failed to create intervention");
-          }
-        } else {
-          // If test failed, use mock data and show a warning
-          toast({
-            title: "Using mock data",
-            description: "Could not connect to the API. Using mock data instead.",
-            status: "warning",
-            duration: 5000,
-            isClosable: true,
-          });
-          
-          // Use mock data
-          const mockIntervention = {
-            id: Math.floor(Math.random() * 10000).toString(),
-            title: formData.title,
-            description: formData.description,
-            type: formData.type,
-            priority: formData.priority,
-            location: formData.location,
-            riskLevel: formData.riskLevel,
-            status: "pending",
-            startTime: new Date().toISOString(),
-          };
-          
-          // Add to local state and close modal
-          setIncidents(prev => [...prev, mockIntervention]);
-          setFormData({
-            title: "",
-            description: "",
-            type: "fire",
-            priority: "MEDIUM",
-            riskLevel: "medium",
-            location: {
-              latitude: 46.603354,
-              longitude: 1.888334,
-              address: "",
-              coordinates: [1.888334, 46.603354]
-            }
-          });
-          setIsModalOpen(false);
-        }
-        
-        setLoading(false);
-        return;
+        toast({
+          title: "Coordinate Warning",
+          description: "Using default coordinates for France. Please select a valid address.",
+          status: "warning",
+          duration: 5000,
+          isClosable: true,
+        });
       }
-
-      // Regular flow - create intervention with validated data
-      const newIntervention = await createIntervention({
+      
+      // Create intervention with the enhanced service
+      const result = await createIntervention({
         title: formData.title,
         description: formData.description,
         type: formData.type,
         priority: formData.priority,
         location: formData.location,
+        regionId: formData.regionId,
+        station: formData.station,
+        commander: formData.commander,
+        startTime: formData.startTime,
+        estimatedDuration: formData.estimatedDuration,
         riskLevel: formData.riskLevel,
-        status: "pending",
-        startTime: new Date().toISOString(),
+        status: formData.status,
+        hazards: formData.hazards || []
       });
-
-      if (newIntervention) {
+      
+      if (result.success) {
+        // Show success toast
         toast({
-          title: "Intervention created",
-          description: "New intervention has been created successfully",
-          status: "success",
+          title: "Intervention Created",
+          description: result.error 
+            ? "Created with mock data due to API issues" 
+            : "Intervention successfully created",
+          status: result.error ? "warning" : "success",
           duration: 5000,
           isClosable: true,
         });
         
+        // If there was an API error but we still have mock data
+        if (result.error) {
+          console.warn(result.error);
+          toast({
+            title: "API Warning",
+            description: result.error,
+            status: "warning",
+            duration: 7000,
+            isClosable: true,
+          });
+        }
+        
+        // Add the new intervention to the list
+        if (result.data) {
+          setIncidents(prev => [result.data, ...prev]);
+        }
+        
+        // Reset form and close modal
         setFormData({
           title: "",
           description: "",
           type: "fire",
           priority: "MEDIUM",
-          riskLevel: "medium",
           location: {
+            address: "",
             latitude: 46.603354,
             longitude: 1.888334,
-            address: "",
             coordinates: [1.888334, 46.603354]
-          }
+          },
+          regionId: "507f1f77bcf86cd799439011",
+          station: "507f1f77bcf86cd799439011",
+          commander: "507f1f77bcf86cd799439011",
+          startTime: new Date().toISOString(),
+          estimatedDuration: 60,
+          riskLevel: "medium",
+          hazards: [],
+          status: "pending"
         });
-        fetchIncidents();
         setIsModalOpen(false);
       } else {
-        throw new Error("Failed to create intervention");
+        // This shouldn't happen with our new implementation, but just in case
+        setError("Failed to create intervention");
+        toast({
+          title: "Error",
+          description: "Failed to create intervention",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+        });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error creating intervention:", err);
-      
-      // Enhanced error handling with more specific messages
-      let errorMessage = "An error occurred while creating the intervention";
-      
-      if (err instanceof Error) {
-        errorMessage = err.message;
-      }
-      
-      setError(errorMessage);
+      setError(err.message || "An unexpected error occurred");
       
       toast({
         title: "Error",
-        description: errorMessage,
+        description: err.message || "An unexpected error occurred",
         status: "error",
         duration: 5000,
         isClosable: true,
@@ -345,12 +338,57 @@ const AllIncidents = () => {
                 </button>
               </div>
               {canAddIncident && (
-                <button 
-                  className="btn btn-primary"
-                  onClick={() => setIsModalOpen(true)}
-                >
-                  <FaPlus className="mr-2" /> Nouvelle intervention
-                </button>
+                <>
+                  <button 
+                    className="btn btn-primary"
+                    onClick={() => setIsModalOpen(true)}
+                  >
+                    <FaPlus className="mr-2" /> Nouvelle intervention
+                  </button>
+                  {process.env.NODE_ENV === 'development' && (
+                    <button 
+                      className="btn btn-outline btn-sm ml-2"
+                      onClick={async () => {
+                        setLoading(true);
+                        try {
+                          const result = await testInterventionCreation();
+                          if (result.success) {
+                            toast({
+                              title: "Test Successful",
+                              description: "API test completed successfully",
+                              status: "success",
+                              duration: 5000,
+                              isClosable: true,
+                            });
+                            console.log("Test result:", result.data);
+                          } else {
+                            toast({
+                              title: "Test Failed",
+                              description: result.error || "Unknown error",
+                              status: "error",
+                              duration: 5000,
+                              isClosable: true,
+                            });
+                            console.error("Test error:", result);
+                          }
+                        } catch (err) {
+                          console.error("Error running test:", err);
+                          toast({
+                            title: "Test Error",
+                            description: "Failed to run API test",
+                            status: "error",
+                            duration: 5000,
+                            isClosable: true,
+                          });
+                        } finally {
+                          setLoading(false);
+                        }
+                      }}
+                    >
+                      Test API
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -401,15 +439,16 @@ const AllIncidents = () => {
                           </td>
                         </tr>
                       ) : (
-                        incidents
+                        // Ensure incidents is an array before filtering
+                        Array.isArray(incidents) && incidents
                           .filter(incident => 
                             searchTerm === "" || 
-                            incident.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            incident.location.address.toLowerCase().includes(searchTerm.toLowerCase())
+                            (incident.title && incident.title.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                            (incident.location?.address && incident.location.address.toLowerCase().includes(searchTerm.toLowerCase()))
                           )
                           .map((incident) => (
-                            <tr key={incident.id} className="hover:bg-gray-700 border-b border-gray-700">
-                              <td>{incident.id}</td>
+                            <tr key={incident._id} className="hover:bg-gray-700 border-b border-gray-700">
+                              <td>{incident._id}</td>
                               <td>{incident.title}</td>
                               <td>
                                 <span className={`badge ${
@@ -442,7 +481,7 @@ const AllIncidents = () => {
                               <td>{new Date(incident.createdAt).toLocaleString('fr-FR')}</td>
                               <td>
                                 <div className="flex space-x-2">
-                                  <Link href={`/incidents/${incident.id}`} className="btn btn-xs btn-outline">
+                                  <Link href={`/incidents/${incident._id}`} className="btn btn-xs btn-outline">
                                     Voir
                                   </Link>
                                 </div>
@@ -479,6 +518,8 @@ const AllIncidents = () => {
                     placeholder="Titre de l'intervention"
                     className="input input-bordered bg-gray-700 text-white"
                     required
+                    minLength={3}
+                    maxLength={200}
                   />
                 </div>
                 
@@ -521,20 +562,18 @@ const AllIncidents = () => {
                 
                 <div className="form-control">
                   <label className="label">
-                    <span className="label-text text-white">Niveau de risque</span>
+                    <span className="label-text text-white">Durée estimée (minutes)</span>
                   </label>
-                  <select
-                    name="riskLevel"
-                    value={formData.riskLevel}
+                  <input
+                    type="number"
+                    name="estimatedDuration"
+                    value={formData.estimatedDuration}
                     onChange={handleChange}
-                    className="select select-bordered bg-gray-700 text-white"
+                    placeholder="Durée estimée en minutes"
+                    className="input input-bordered bg-gray-700 text-white"
+                    min={1}
                     required
-                  >
-                    <option value="low">Faible</option>
-                    <option value="medium">Moyen</option>
-                    <option value="high">Élevé</option>
-                    <option value="extreme">Extrême</option>
-                  </select>
+                  />
                 </div>
                 
                 <div className="form-control">
@@ -546,6 +585,25 @@ const AllIncidents = () => {
                     initialAddress={formData.location.address}
                     placeholder="Entrez l'adresse de l'intervention"
                     required={true}
+                  />
+                </div>
+
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text text-white">Date de début</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    name="startTime"
+                    value={formData.startTime ? formData.startTime.slice(0, 16) : ''}
+                    onChange={(e) => {
+                      const date = e.target.value ? new Date(e.target.value) : new Date();
+                      setFormData({
+                        ...formData,
+                        startTime: date.toISOString()
+                      });
+                    }}
+                    className="input input-bordered bg-gray-700 text-white"
                   />
                 </div>
               </div>
@@ -561,6 +619,8 @@ const AllIncidents = () => {
                   placeholder="Description de l'intervention"
                   className="textarea textarea-bordered bg-gray-700 text-white h-24"
                   required
+                  minLength={10}
+                  maxLength={1000}
                 ></textarea>
               </div>
               

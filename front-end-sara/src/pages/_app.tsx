@@ -5,6 +5,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import LoadingSpinner from '../components/LoadingSpinner';
+import ToastProvider from '@/components/ToastProvider';
 import axios from 'axios';
 
 // Configure axios defaults
@@ -41,13 +42,15 @@ function MyApp({ Component, pageProps }: AppProps) {
 
   return (
     <AuthProvider>
-      {isLoading ? (
-        <div className="flex items-center justify-center min-h-screen">
-          <LoadingSpinner size="large" />
-        </div>
-      ) : (
-        <Component {...pageProps} />
-      )}
+      <ToastProvider>
+        {isLoading ? (
+          <div className="flex items-center justify-center min-h-screen">
+            <LoadingSpinner size="large" />
+          </div>
+        ) : (
+          <Component {...pageProps} />
+        )}
+      </ToastProvider>
     </AuthProvider>
   );
 }
