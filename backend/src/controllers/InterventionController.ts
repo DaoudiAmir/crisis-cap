@@ -9,16 +9,40 @@ class InterventionController {
   // @access  Private - Team Leader and above
   async createIntervention(req: Request, res: Response, next: NextFunction) {
     try {
+      // Include any validation warnings in the response
+      const validationWarnings = (req as any).validationWarnings || [];
+      
+      // Log the sanitized request body for debugging
+      console.log('Creating intervention with sanitized data:', JSON.stringify(req.body, null, 2));
+      
       const intervention = await InterventionService.createIntervention({
         ...req.body,
-        createdBy: req.user?._id
+        createdBy: req.user?._id || req.body.createdBy
       });
       
       res.status(201).json({
         status: 'success',
-        data: { intervention }
+        data: { intervention },
+        warnings: validationWarnings.length > 0 ? validationWarnings : undefined
       });
-    } catch (err) {
+    } catch (err: any) {
+      console.error('Error in createIntervention controller:', err);
+      
+      // Provide more detailed error information
+      if (err.name === 'ValidationError') {
+        const validationErrors = Object.values(err.errors).map((error: any) => ({
+          field: error.path,
+          message: error.message,
+          value: error.value
+        }));
+        
+        return res.status(400).json({
+          status: 'error',
+          message: 'Validation failed',
+          errors: validationErrors
+        });
+      }
+      
       next(err);
     }
   }

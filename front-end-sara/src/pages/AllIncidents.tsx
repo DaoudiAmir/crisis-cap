@@ -83,16 +83,44 @@ const AllIncidents = () => {
   // Fetch available resources and teams
   const fetchResourcesAndTeams = async () => {
     setIsLoadingResources(true);
+    setError(null);
+    
     try {
-      const [resourcesData, teamsData] = await Promise.all([
-        getAvailableResources(),
-        getTeams()
-      ]);
+      // Fetch resources and teams separately to handle individual failures
+      let resourcesData: Resource[] = [];
+      let teamsData: Team[] = [];
+      
+      try {
+        resourcesData = await getAvailableResources();
+        console.log('Successfully fetched resources:', resourcesData.length);
+      } catch (resourceError) {
+        console.error('Error fetching resources:', resourceError);
+        toast.show({
+          type: 'warning',
+          message: 'Could not load resources. Using mock data instead.'
+        });
+      }
+      
+      try {
+        teamsData = await getTeams();
+        console.log('Successfully fetched teams:', teamsData.length);
+      } catch (teamError) {
+        console.error('Error fetching teams:', teamError);
+        toast.show({
+          type: 'warning',
+          message: 'Could not load teams. Using mock data instead.'
+        });
+      }
       
       setAvailableResources(resourcesData);
       setAvailableTeams(teamsData);
     } catch (error) {
-      console.error('Error fetching resources and teams:', error);
+      console.error('Error in fetchResourcesAndTeams:', error);
+      setError("Failed to load resources and teams. Using mock data instead.");
+      toast.show({
+        type: 'error',
+        message: 'An error occurred while loading resources and teams.'
+      });
     } finally {
       setIsLoadingResources(false);
     }

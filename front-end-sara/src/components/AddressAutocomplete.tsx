@@ -2,7 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { geocodeAddress, getAddressSuggestions, GeocodingResult } from '@/services/geocodingService';
 
 interface AddressAutocompleteProps {
-  onAddressSelect: (address: string, coordinates: { latitude: number; longitude: number; coordinates: [number, number] }) => void;
+  onAddressSelect: (
+    address: string, 
+    latOrCoordinates?: number | { latitude: number; longitude: number; coordinates: [number, number] }, 
+    lng?: number
+  ) => void;
+  initialValue?: string;
   initialAddress?: string;
   placeholder?: string;
   className?: string;
@@ -49,18 +54,32 @@ const MOCK_COORDINATES = {
  */
 const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   onAddressSelect,
-  initialAddress = '',
-  placeholder = 'Entrez une adresse',
+  initialValue = '',
+  initialAddress,
+  placeholder = 'Enter an address',
   className = '',
   required = false
 }) => {
-  const [address, setAddress] = useState(initialAddress);
+  // Use initialAddress if provided (for backward compatibility), otherwise use initialValue
+  const initialAddressValue = initialAddress !== undefined ? initialAddress : initialValue;
+  
+  const [address, setAddress] = useState(initialAddressValue);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [usingFallback, setUsingFallback] = useState(false);
+  const [lastSearchTerm, setLastSearchTerm] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Update the input field when initialValue or initialAddress changes
+  useEffect(() => {
+    const newInitialValue = initialAddress !== undefined ? initialAddress : initialValue;
+    if (newInitialValue && newInitialValue !== address) {
+      setAddress(newInitialValue);
+    }
+  }, [initialValue, initialAddress, address]);
 
   // Close suggestions when clicking outside
   useEffect(() => {
@@ -73,6 +92,10 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      // Clear any pending timeouts when component unmounts
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -111,124 +134,184 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   // Function to handle address selection
   const handleAddressSelect = async (selectedAddress: string) => {
     try {
+      // First update the input field with the selected address
       setAddress(selectedAddress);
       setLoading(true);
       setError(null);
       
       // Default coordinates (center of France)
-      let defaultCoordinates: [number, number] = [1.888334, 46.603354];
+      const defaultLongitude = 1.888334;
+      const defaultLatitude = 46.603354;
       
       // First check if we have mock coordinates for this address
       const mockCoords = getMockCoordinates(selectedAddress);
-      if (mockCoords && mockCoords.latitude && mockCoords.longitude) {
-        defaultCoordinates = [mockCoords.longitude, mockCoords.latitude];
-      }
       
+      // Try to geocode the address
       try {
-        // Try to geocode the address
+        console.log('Geocoding address:', selectedAddress);
         const geocodeResponse = await geocodeAddress(selectedAddress);
         
         if (geocodeResponse && 
-            geocodeResponse.latitude && 
-            geocodeResponse.longitude && 
-            !isNaN(Number(geocodeResponse.latitude)) && 
-            !isNaN(Number(geocodeResponse.longitude))) {
-          
-          // Format coordinates as [longitude, latitude] for GeoJSON
-          const coordinates: [number, number] = [
-            Number(geocodeResponse.longitude), 
-            Number(geocodeResponse.latitude)
-          ];
+            typeof geocodeResponse.latitude === 'number' && 
+            typeof geocodeResponse.longitude === 'number' && 
+            !isNaN(geocodeResponse.latitude) && 
+            !isNaN(geocodeResponse.longitude)) {
           
           // Log successful geocoding
-          console.log('Geocoded address:', selectedAddress);
-          console.log('Coordinates:', coordinates);
+          console.log('Successfully geocoded address:', selectedAddress);
+          console.log('Coordinates:', geocodeResponse.longitude, geocodeResponse.latitude);
           
-          // Update the location with coordinates
-          const updatedLocation = {
-            latitude: Number(geocodeResponse.latitude),
-            longitude: Number(geocodeResponse.longitude),
-            address: selectedAddress,
-            coordinates: coordinates // Format as [longitude, latitude] for GeoJSON
+          const lat = geocodeResponse.latitude;
+          const lng = geocodeResponse.longitude;
+          
+          // Create coordinates object in the format expected by AllIncidents.tsx
+          const coordinatesObject = {
+            latitude: lat,
+            longitude: lng,
+            coordinates: [lng, lat] as [number, number]
           };
           
-          onAddressSelect(selectedAddress, updatedLocation);
+          // Call the parent component's onAddressSelect with the address and coordinates object
+          // This is for AllIncidents.tsx and other newer components
+          try {
+            onAddressSelect(selectedAddress, coordinatesObject);
+          } catch (e) {
+            // If that fails, try the older format (intervention-test.tsx)
+            console.log('Falling back to older onAddressSelect signature');
+            onAddressSelect(selectedAddress, lat, lng);
+          }
+          
           setLoading(false);
           setShowSuggestions(false);
           return;
         } else {
           console.warn('Invalid coordinates received from geocoding API:', geocodeResponse);
+          throw new Error('Invalid coordinates from geocoding API');
         }
       } catch (error) {
         console.error('Error geocoding address:', error);
+        setUsingFallback(true);
+        // Continue to fallback
       }
       
       // If we reach here, geocoding failed or returned invalid coordinates
-      // Use default coordinates as fallback
+      // Use mock coordinates or default as fallback
       console.warn(`Using fallback coordinates for address: ${selectedAddress}`);
       
-      const fallbackLocation = {
-        latitude: defaultCoordinates[1],
-        longitude: defaultCoordinates[0],
-        address: selectedAddress,
-        coordinates: defaultCoordinates // Format as [longitude, latitude] for GeoJSON
+      let fallbackLatitude = defaultLatitude;
+      let fallbackLongitude = defaultLongitude;
+      
+      // Use mock coordinates if available
+      if (mockCoords && typeof mockCoords.latitude === 'number' && typeof mockCoords.longitude === 'number') {
+        fallbackLatitude = mockCoords.latitude;
+        fallbackLongitude = mockCoords.longitude;
+      }
+      
+      console.log('Using fallback coordinates:', fallbackLongitude, fallbackLatitude);
+      
+      // Create coordinates object in the format expected by AllIncidents.tsx
+      const coordinatesObject = {
+        latitude: fallbackLatitude,
+        longitude: fallbackLongitude,
+        coordinates: [fallbackLongitude, fallbackLatitude] as [number, number]
       };
       
-      onAddressSelect(selectedAddress, fallbackLocation);
+      // Try the newer format first, fall back to older format if needed
+      try {
+        onAddressSelect(selectedAddress, coordinatesObject);
+      } catch (e) {
+        console.log('Falling back to older onAddressSelect signature');
+        onAddressSelect(selectedAddress, fallbackLatitude, fallbackLongitude);
+      }
     } catch (error) {
       console.error('Error in handleAddressSelect:', error);
       setError('Failed to get coordinates for this address');
       
       // Even in case of error, still update with default coordinates for France
-      const fallbackCoordinates: [number, number] = [1.888334, 46.603354];
+      const fallbackLongitude = 1.888334;
+      const fallbackLatitude = 46.603354;
       
-      const fallbackLocation = {
-        latitude: fallbackCoordinates[1],
-        longitude: fallbackCoordinates[0],
-        address: selectedAddress,
-        coordinates: fallbackCoordinates
+      // Create coordinates object in the format expected by AllIncidents.tsx
+      const coordinatesObject = {
+        latitude: fallbackLatitude,
+        longitude: fallbackLongitude,
+        coordinates: [fallbackLongitude, fallbackLatitude] as [number, number]
       };
       
-      onAddressSelect(selectedAddress, fallbackLocation);
+      // Try the newer format first, fall back to older format if needed
+      try {
+        onAddressSelect(selectedAddress, coordinatesObject);
+      } catch (e) {
+        console.log('Falling back to older onAddressSelect signature');
+        onAddressSelect(selectedAddress, fallbackLatitude, fallbackLongitude);
+      }
     } finally {
       setLoading(false);
       setShowSuggestions(false);
     }
   };
 
-  // Handle address input change
-  const handleAddressChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setAddress(value);
+  // Function to fetch address suggestions
+  const fetchSuggestions = async (query: string) => {
+    if (!query || query.length < 3) {
+      setSuggestions([]);
+      return;
+    }
+
+    // Don't search again if the query is the same
+    if (query === lastSearchTerm) {
+      return;
+    }
+
+    setLastSearchTerm(query);
+    setLoading(true);
     setError(null);
 
-    if (value.length >= 3) {
-      setLoading(true);
-      try {
-        // Try to get suggestions from the API
-        const addressSuggestions = await getAddressSuggestions(value);
-        
-        if (addressSuggestions.length > 0) {
-          setSuggestions(addressSuggestions);
-          setShowSuggestions(true);
-          setUsingFallback(false);
-        } else {
-          // Fallback to mock suggestions if API returns empty results
-          const mockSuggestions = getMockSuggestions(value);
-          setSuggestions(mockSuggestions);
-          setShowSuggestions(true);
-          setUsingFallback(true);
-        }
-      } catch (err) {
-        console.error('Error fetching address suggestions:', err);
-        
-        // Fallback to mock suggestions on error
-        const mockSuggestions = getMockSuggestions(value);
-        setSuggestions(mockSuggestions);
+    try {
+      // Try to get suggestions from the API
+      const response = await getAddressSuggestions(query);
+      
+      if (response && Array.isArray(response) && response.length > 0) {
+        setSuggestions(response);
+        setUsingFallback(false);
         setShowSuggestions(true);
+      } else {
+        // If API returns empty or invalid response, use mock data
+        console.warn('No suggestions from API, using mock data');
+        setSuggestions(getMockSuggestions(query));
         setUsingFallback(true);
-      } finally {
-        setLoading(false);
+        setShowSuggestions(true);
+      }
+    } catch (error) {
+      console.error('Error fetching address suggestions:', error);
+      setSuggestions(getMockSuggestions(query));
+      setUsingFallback(true);
+      setShowSuggestions(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle input change
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setAddress(value);
+    
+    // Clear any existing timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    if (value.length >= 3) {
+      // Check if a word has been completed (space added)
+      const hasCompletedWord = value.endsWith(' ') || 
+                              (lastSearchTerm && value.split(' ').length > lastSearchTerm.split(' ').length);
+      
+      if (hasCompletedWord || value.length > lastSearchTerm.length + 3) {
+        // Set a timeout to avoid too many API calls
+        searchTimeoutRef.current = setTimeout(() => {
+          fetchSuggestions(value);
+        }, 500); // 500ms delay
       }
     } else {
       setSuggestions([]);
@@ -236,37 +319,53 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     }
   };
 
+  // Handle key press events
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // If Enter is pressed and there are suggestions, select the first one
+    if (e.key === 'Enter' && suggestions.length > 0 && showSuggestions) {
+      e.preventDefault();
+      handleAddressSelect(suggestions[0]);
+    }
+  };
+
   return (
-    <div className="relative w-full" ref={inputRef}>
-      <div className="relative">
-        <input
-          type="text"
-          value={address}
-          onChange={handleAddressChange}
-          placeholder={placeholder}
-          className={`input input-bordered w-full bg-gray-800 text-white ${className}`}
-          required={required}
-          aria-label="Adresse"
-          autoComplete="off"
-        />
-        {loading && (
-          <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-            <div className="loading loading-spinner loading-xs"></div>
-          </div>
-        )}
-      </div>
+    <div className={`relative ${className}`}>
+      <input
+        ref={inputRef}
+        type="text"
+        value={address}
+        onChange={handleInputChange}
+        onKeyDown={handleKeyDown}
+        onFocus={() => address.length >= 3 && setShowSuggestions(true)}
+        placeholder={placeholder}
+        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        required={required}
+      />
       
-      {error && <p className="text-error text-sm mt-1">{error}</p>}
-      {usingFallback && !error && (
-        <p className="text-warning text-xs mt-1">Mode hors-ligne: suggestions approximatives</p>
+      {loading && (
+        <div className="absolute right-3 top-3">
+          <div className="animate-spin h-4 w-4 border-2 border-blue-500 rounded-full border-t-transparent"></div>
+        </div>
+      )}
+      
+      {usingFallback && (
+        <div className="text-xs text-amber-500 mt-1">
+          Using offline data (limited accuracy)
+        </div>
+      )}
+      
+      {error && (
+        <div className="text-xs text-red-500 mt-1">
+          {error}
+        </div>
       )}
       
       {showSuggestions && suggestions.length > 0 && (
-        <ul className="absolute z-10 mt-1 w-full bg-gray-800 border border-gray-700 rounded-md shadow-lg max-h-60 overflow-auto">
+        <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
           {suggestions.map((suggestion, index) => (
             <li
               key={index}
-              className="px-4 py-2 hover:bg-gray-700 cursor-pointer text-sm text-white"
+              className="px-4 py-2 text-gray-800 hover:bg-blue-100 cursor-pointer border-b border-gray-100 last:border-b-0"
               onClick={() => handleAddressSelect(suggestion)}
             >
               {suggestion}

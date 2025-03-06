@@ -40,30 +40,62 @@ interface NominatimResult {
  */
 export const geocodeAddress = async (address: string): Promise<GeocodingResult> => {
   try {
-    // Make a request to our Next.js API route that proxies to Nominatim
-    const response = await axios.get('/api/geocoding/geocode', {
-      params: {
-        q: address
-      }
-    });
-
-    if (response.data && response.data.length > 0) {
-      const result = response.data[0] as NominatimResult;
-      return {
-        address: result.display_name,
-        latitude: parseFloat(result.lat),
-        longitude: parseFloat(result.lon)
-      };
-    }
-
-    // Default to France coordinates if no results found
-    return {
+    // Default coordinates (center of France) for fallback
+    const defaultCoordinates = {
       address,
-      latitude: 46.603354, // Center of France
+      latitude: 46.603354,
       longitude: 1.888334
     };
+
+    if (!address || address.trim() === '') {
+      console.warn('Empty address provided to geocodeAddress, using default coordinates');
+      return defaultCoordinates;
+    }
+
+    console.log(`Attempting to geocode address: "${address}"`);
+
+    // Make a request to our Next.js API route that proxies to Nominatim
+    try {
+      const response = await axios.get('/api/geocoding/geocode', {
+        params: {
+          q: address
+        },
+        timeout: 5000 // 5 second timeout to prevent long waits
+      });
+
+      if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+        const result = response.data[0] as NominatimResult;
+        
+        // Validate the coordinates
+        const latitude = parseFloat(result.lat);
+        const longitude = parseFloat(result.lon);
+        
+        if (!isNaN(latitude) && !isNaN(longitude) && 
+            latitude >= -90 && latitude <= 90 && 
+            longitude >= -180 && longitude <= 180) {
+          
+          console.log(`Successfully geocoded address: "${address}" to coordinates:`, { latitude, longitude });
+          
+          return {
+            address: result.display_name || address,
+            latitude,
+            longitude
+          };
+        } else {
+          console.warn('Invalid coordinates received from geocoding API:', { lat: result.lat, lon: result.lon });
+          throw new Error('Invalid coordinates received from geocoding API');
+        }
+      } else {
+        console.warn('No results found for address:', address);
+        throw new Error('No geocoding results found for address');
+      }
+    } catch (apiError) {
+      console.error('API error during geocoding:', apiError);
+      throw apiError; // Re-throw to be caught by the outer try-catch
+    }
   } catch (error) {
     console.error('Error geocoding address:', error);
+    
     // Fallback to default coordinates
     return {
       address,

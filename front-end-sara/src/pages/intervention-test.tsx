@@ -1,265 +1,272 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/router';
-import Head from '@/components/Head';
-import Header from '@/components/Header';
-import Sidebar from '@/components/Sidebar';
-import Footer from '@/components/Footer';
 import { createIntervention } from '@/services/interventionService';
-import useToast from '@/components/Toast';
+import { Button, Card, Input, Select, Textarea, Alert } from '@/components/ui';
 import AddressAutocomplete from '@/components/AddressAutocomplete';
+import { InterventionPriority, InterventionType } from '@/types/intervention';
+import { toast } from 'react-hot-toast';
 
-const InterventionTestPage = () => {
+const InterventionTestPage: React.FC = () => {
   const router = useRouter();
-  const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<string[]>([]);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [formData, setFormData] = useState({
-    title: 'Test Intervention',
-    description: 'This is a test intervention',
-    type: 'fire',
-    priority: 'MEDIUM',
+    title: '',
+    description: '',
+    type: 'fire' as InterventionType,
+    priority: 'MEDIUM' as InterventionPriority,
     location: {
       type: 'Point',
-      coordinates: [null, null] as [number | null, number | null],
+      coordinates: [1.888334, 46.603354] as [number, number], // Default to center of France
       address: ''
     },
-    status: 'pending',
-    region: '',
-    station: '',
+    region: 'default-region',
+    station: 'default-station',
+    commander: 'default-commander',
     startTime: new Date().toISOString(),
-    createdBy: 'system'
+    createdBy: 'system',
   });
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value
-    });
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleAddressSelect = (address: string, coordinates: { latitude: number; longitude: number; coordinates: [number, number] }) => {
-    console.log('Address selected:', address);
-    console.log('Coordinates:', coordinates);
+  const handleAddressSelect = (address: string, lat?: number, lng?: number) => {
+    console.log('Selected address:', address, 'Coordinates:', lat, lng);
     
-    setFormData({
-      ...formData,
+    // Use the provided coordinates or default to center of France
+    const coordinates: [number, number] = (
+      lat !== undefined && lng !== undefined && !isNaN(lat) && !isNaN(lng)
+    ) ? [lng, lat] : [1.888334, 46.603354];
+    
+    setFormData(prev => ({
+      ...prev,
       location: {
         type: 'Point',
-        coordinates: coordinates.coordinates,
-        address: address
+        coordinates,
+        address
       }
-    });
+    }));
+  };
+
+  const validateForm = (): boolean => {
+    const newErrors: string[] = [];
+    
+    if (!formData.title.trim()) {
+      newErrors.push('Title is required');
+    }
+    
+    if (!formData.description.trim()) {
+      newErrors.push('Description is required');
+    }
+    
+    if (!formData.location.address.trim()) {
+      newErrors.push('Address is required');
+    }
+    
+    // Validate coordinates
+    const [lng, lat] = formData.location.coordinates;
+    if (typeof lng !== 'number' || typeof lat !== 'number' || isNaN(lng) || isNaN(lat)) {
+      newErrors.push('Valid coordinates are required');
+    }
+    
+    setErrors(newErrors);
+    return newErrors.length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    setResult(null);
+    setErrors([]);
+    setWarnings([]);
+    
+    if (!validateForm()) {
+      return;
+    }
+    
+    setLoading(true);
     
     try {
       console.log('Submitting intervention with data:', formData);
-      const response = await createIntervention(formData);
-      setResult(response);
       
-      if (response.success) {
-        toast({
-          title: 'Succès',
-          description: 'Intervention créée avec succès',
-          status: 'success'
-        });
+      const result = await createIntervention(formData);
+      
+      // Handle any warnings from the backend
+      if (result.warnings && result.warnings.length > 0) {
+        setWarnings(result.warnings);
+        console.warn('Intervention created with warnings:', result.warnings);
+      }
+      
+      toast.success('Intervention created successfully!');
+      
+      // Redirect to the intervention detail page
+      if (result.intervention._id) {
+        router.push(`/interventions/${result.intervention._id}`);
       } else {
-        toast({
-          title: 'Erreur',
-          description: response.error || 'Échec de la création de l\'intervention',
-          status: 'error'
-        });
+        // If no ID (mock data), just show success
+        setLoading(false);
       }
     } catch (error) {
       console.error('Error creating intervention:', error);
-      setResult({ error: 'Exception occurred', details: error });
-      toast({
-        title: 'Erreur',
-        description: 'Une exception s\'est produite lors de la création',
-        status: 'error'
-      });
-    } finally {
-      setIsLoading(false);
+      
+      if (error instanceof Error) {
+        setErrors([error.message]);
+        toast.error(error.message);
+      } else {
+        setErrors(['An unknown error occurred']);
+        toast.error('Failed to create intervention');
+      }
+      
+      setLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-900 text-white">
-      <Head title="Test de Création d'Intervention" />
-      <Header />
-      <div className="flex flex-1">
-        <Sidebar />
-        <main className="flex-1 p-4">
-          <div className="container mx-auto">
-            <h1 className="text-2xl font-bold mb-6">Test de Création d'Intervention</h1>
-            
-            <div className="bg-gray-800 p-6 rounded-lg mb-6">
-              <form onSubmit={handleSubmit}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="form-control">
-                    <label className="label">
-                      <span className="label-text text-white">Titre</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="title"
-                      value={formData.title}
-                      onChange={handleInputChange}
-                      className="input input-bordered bg-gray-700 text-white"
-                      required
-                    />
-                  </div>
-                  
-                  <div className="form-control">
-                    <label className="label">
-                      <span className="label-text text-white">Type</span>
-                    </label>
-                    <select
-                      name="type"
-                      value={formData.type}
-                      onChange={handleInputChange}
-                      className="select select-bordered bg-gray-700 text-white"
-                      required
-                    >
-                      <option value="fire">Incendie</option>
-                      <option value="medical">Médical</option>
-                      <option value="rescue">Sauvetage</option>
-                      <option value="hazmat">Matières dangereuses</option>
-                      <option value="other">Autre</option>
-                    </select>
-                  </div>
-                  
-                  <div className="form-control">
-                    <label className="label">
-                      <span className="label-text text-white">Priorité</span>
-                    </label>
-                    <select
-                      name="priority"
-                      value={formData.priority}
-                      onChange={handleInputChange}
-                      className="select select-bordered bg-gray-700 text-white"
-                      required
-                    >
-                      <option value="LOW">Basse</option>
-                      <option value="MEDIUM">Moyenne</option>
-                      <option value="HIGH">Haute</option>
-                      <option value="CRITICAL">Critique</option>
-                    </select>
-                  </div>
-                  
-                  <div className="form-control">
-                    <label className="label">
-                      <span className="label-text text-white">Statut</span>
-                    </label>
-                    <select
-                      name="status"
-                      value={formData.status}
-                      onChange={handleInputChange}
-                      className="select select-bordered bg-gray-700 text-white"
-                    >
-                      <option value="pending">En attente</option>
-                      <option value="dispatched">Dispatché</option>
-                      <option value="in_progress">En cours</option>
-                      <option value="completed">Terminé</option>
-                      <option value="cancelled">Annulé</option>
-                    </select>
-                  </div>
-                  
-                  <div className="form-control">
-                    <label className="label">
-                      <span className="label-text text-white">Station</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="station"
-                      value={formData.station}
-                      onChange={handleInputChange}
-                      className="input input-bordered bg-gray-700 text-white"
-                      placeholder="Laissez vide pour utiliser la valeur par défaut"
-                    />
-                  </div>
-                  
-                  <div className="form-control">
-                    <label className="label">
-                      <span className="label-text text-white">Région</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="region"
-                      value={formData.region}
-                      onChange={handleInputChange}
-                      className="input input-bordered bg-gray-700 text-white"
-                      placeholder="Laissez vide pour utiliser la valeur par défaut"
-                    />
-                  </div>
-                  
-                  <div className="form-control md:col-span-2">
-                    <label className="label">
-                      <span className="label-text text-white">Adresse</span>
-                    </label>
-                    <AddressAutocomplete
-                      onAddressSelect={handleAddressSelect}
-                      placeholder="Entrez une adresse"
-                      className="w-full"
-                    />
-                    <div className="text-xs mt-1 text-gray-400">
-                      Adresse actuelle: {formData.location.address || 'Non spécifiée'}
-                    </div>
-                    <div className="text-xs mt-1 text-gray-400">
-                      Coordonnées: {formData.location.coordinates[0] !== null ? `[${formData.location.coordinates[0]}, ${formData.location.coordinates[1]}]` : 'Non spécifiées'}
-                    </div>
-                  </div>
-                  
-                  <div className="form-control md:col-span-2">
-                    <label className="label">
-                      <span className="label-text text-white">Description</span>
-                    </label>
-                    <textarea
-                      name="description"
-                      value={formData.description}
-                      onChange={handleInputChange}
-                      className="textarea textarea-bordered bg-gray-700 text-white h-24"
-                      required
-                    ></textarea>
-                  </div>
-                </div>
-                
-                <div className="mt-6">
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <>
-                        <span className="loading loading-spinner loading-sm mr-2"></span>
-                        Création en cours...
-                      </>
-                    ) : (
-                      'Créer l\'intervention'
-                    )}
-                  </button>
-                </div>
-              </form>
+    <div className="container mx-auto p-4">
+      <Card className="max-w-2xl mx-auto">
+        <h1 className="text-2xl font-bold mb-6">Create Test Intervention</h1>
+        
+        {/* Display validation errors */}
+        {errors.length > 0 && (
+          <Alert variant="error" className="mb-4">
+            <h3 className="font-bold">Validation Errors:</h3>
+            <ul className="list-disc pl-5">
+              {errors.map((error, index) => (
+                <li key={index}>{error}</li>
+              ))}
+            </ul>
+          </Alert>
+        )}
+        
+        {/* Display warnings */}
+        {warnings.length > 0 && (
+          <Alert variant="warning" className="mb-4">
+            <h3 className="font-bold">Warnings:</h3>
+            <ul className="list-disc pl-5">
+              {warnings.map((warning, index) => (
+                <li key={index}>{warning}</li>
+              ))}
+            </ul>
+          </Alert>
+        )}
+        
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="title" className="block mb-1">Title</label>
+              <Input
+                id="title"
+                name="title"
+                value={formData.title}
+                onChange={handleInputChange}
+                placeholder="Intervention title"
+                required
+              />
             </div>
             
-            {result && (
-              <div className="bg-gray-800 p-6 rounded-lg">
-                <h2 className="text-xl font-bold mb-4">Résultat</h2>
-                <div className="bg-gray-700 p-4 rounded-lg overflow-auto max-h-96">
-                  <pre className="text-sm">{JSON.stringify(result, null, 2)}</pre>
-                </div>
+            <div>
+              <label htmlFor="description" className="block mb-1">Description</label>
+              <Textarea
+                id="description"
+                name="description"
+                value={formData.description}
+                onChange={handleInputChange}
+                placeholder="Describe the intervention"
+                required
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="type" className="block mb-1">Type</label>
+              <Select
+                id="type"
+                name="type"
+                value={formData.type}
+                onChange={handleInputChange}
+                required
+              >
+                <option value="fire">Fire</option>
+                <option value="medical">Medical</option>
+                <option value="rescue">Rescue</option>
+                <option value="hazmat">Hazmat</option>
+                <option value="other">Other</option>
+              </Select>
+            </div>
+            
+            <div>
+              <label htmlFor="priority" className="block mb-1">Priority</label>
+              <Select
+                id="priority"
+                name="priority"
+                value={formData.priority}
+                onChange={handleInputChange}
+                required
+              >
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+                <option value="CRITICAL">Critical</option>
+              </Select>
+            </div>
+            
+            <div>
+              <label htmlFor="address" className="block mb-1">Location</label>
+              <AddressAutocomplete
+                onAddressSelect={handleAddressSelect}
+                initialValue={formData.location.address}
+              />
+              <div className="text-sm text-gray-500 mt-1">
+                Coordinates: [{formData.location.coordinates[0].toFixed(6)}, {formData.location.coordinates[1].toFixed(6)}]
               </div>
-            )}
+            </div>
+            
+            <div>
+              <label htmlFor="region" className="block mb-1">Region</label>
+              <Input
+                id="region"
+                name="region"
+                value={formData.region}
+                onChange={handleInputChange}
+                placeholder="Region"
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="station" className="block mb-1">Station</label>
+              <Input
+                id="station"
+                name="station"
+                value={formData.station}
+                onChange={handleInputChange}
+                placeholder="Station"
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="commander" className="block mb-1">Commander</label>
+              <Input
+                id="commander"
+                name="commander"
+                value={formData.commander}
+                onChange={handleInputChange}
+                placeholder="Commander"
+              />
+            </div>
+            
+            <div className="pt-4">
+              <Button
+                type="submit"
+                variant="primary"
+                className="w-full"
+                disabled={loading}
+              >
+                {loading ? 'Creating...' : 'Create Intervention'}
+              </Button>
+            </div>
           </div>
-        </main>
-      </div>
-      <Footer />
+        </form>
+      </Card>
     </div>
   );
 };

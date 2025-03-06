@@ -86,39 +86,71 @@ export const getAvailableResources = async (): Promise<Resource[]> => {
       return getMockResources().filter(r => r.status === 'available');
     }
     
-    // Get available users
-    const usersResponse = await axios.get(`${USERS_ENDPOINT}?status=available`, {
-      headers: {
-        'Authorization': `Bearer ${authToken}`,
+    let users: Resource[] = [];
+    let vehicles: Resource[] = [];
+    
+    try {
+      // Get available users - the backend expects role parameter, not status
+      // Based on the UserController and UserService implementation
+      const usersResponse = await axios.get(`${USERS_ENDPOINT}/role/sapeur-pompier`, {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+        }
+      });
+      
+      // Transform user data to Resource format
+      if (usersResponse.data?.data?.users && Array.isArray(usersResponse.data.data.users)) {
+        users = usersResponse.data.data.users.map((user: any) => ({
+          _id: user._id,
+          name: `${user.firstName} ${user.lastName}`,
+          type: 'User' as ResourceType,
+          status: (user.status === 'AVAILABLE' ? 'available' : 'unavailable') as ResourceStatus,
+          location: user.location,
+          capabilities: user.specializations || []
+        }));
+        console.log('Successfully fetched users:', users.length);
+      } else {
+        console.warn('Invalid user data structure received:', usersResponse.data);
       }
-    });
+    } catch (error) {
+      console.warn('Error fetching available users, using mock data:', error);
+      // Use mock users as fallback
+      users = getMockResources()
+        .filter(r => r.type === 'User' && r.status === 'available');
+    }
     
-    // Get available vehicles
-    const vehiclesResponse = await axios.get(`${VEHICLES_ENDPOINT}?status=available`, {
-      headers: {
-        'Authorization': `Bearer ${authToken}`,
+    try {
+      // Get available vehicles - the backend expects status parameter
+      // Based on the VehicleController and VehicleService implementation
+      const vehiclesResponse = await axios.get(`${VEHICLES_ENDPOINT}`, {
+        params: { status: 'AVAILABLE' },
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+        }
+      });
+      
+      // Transform vehicle data to Resource format
+      if (vehiclesResponse.data?.data?.vehicles && Array.isArray(vehiclesResponse.data.data.vehicles)) {
+        vehicles = vehiclesResponse.data.data.vehicles.map((vehicle: any) => ({
+          _id: vehicle._id,
+          name: vehicle.callSign || `Vehicle ${vehicle.type}`,
+          type: 'Vehicle' as ResourceType,
+          status: (vehicle.status === 'AVAILABLE' ? 'available' : 'unavailable') as ResourceStatus,
+          location: vehicle.location,
+          capabilities: [vehicle.type]
+        }));
+        console.log('Successfully fetched vehicles:', vehicles.length);
+      } else {
+        console.warn('Invalid vehicle data structure received:', vehiclesResponse.data);
       }
-    });
+    } catch (error) {
+      console.warn('Error fetching available vehicles, using mock data:', error);
+      // Use mock vehicles as fallback
+      vehicles = getMockResources()
+        .filter(r => r.type === 'Vehicle' && r.status === 'available');
+    }
     
-    // Combine and format as resources
-    const users = usersResponse.data.data.users.map((user: any) => ({
-      _id: user._id,
-      name: `${user.firstName} ${user.lastName}`,
-      type: 'User' as ResourceType,
-      status: 'available' as ResourceStatus,
-      capabilities: user.skills || [],
-      location: user.lastKnownLocation
-    }));
-    
-    const vehicles = vehiclesResponse.data.data.vehicles.map((vehicle: any) => ({
-      _id: vehicle._id,
-      name: vehicle.callSign || vehicle.registrationNumber,
-      type: 'Vehicle' as ResourceType,
-      status: 'available' as ResourceStatus,
-      capabilities: vehicle.capabilities || [],
-      location: vehicle.lastKnownLocation
-    }));
-    
+    // Combine users and vehicles
     return [...users, ...vehicles];
   } catch (error) {
     console.error('Error fetching available resources:', error);
@@ -138,15 +170,29 @@ export const getTeams = async (): Promise<Team[]> => {
       return getMockTeams();
     }
     
-    const response = await axios.get(TEAMS_ENDPOINT, {
-      headers: {
-        'Authorization': `Bearer ${authToken}`,
+    try {
+      const response = await axios.get(TEAMS_ENDPOINT, {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+        }
+      });
+      
+      // Validate response data structure
+      if (response.data && response.data.data && Array.isArray(response.data.data.teams)) {
+        console.log('Successfully fetched teams:', response.data.data.teams.length);
+        return response.data.data.teams;
+      } else {
+        console.warn('Invalid teams data structure received:', response.data);
+        throw new Error('Invalid teams data structure');
       }
-    });
-    
-    return response.data.data.teams;
+    } catch (apiError) {
+      console.error('API error fetching teams:', apiError);
+      // Use mock data as fallback
+      console.warn('Using mock teams data as fallback');
+      return getMockTeams();
+    }
   } catch (error) {
-    console.error('Error fetching teams:', error);
+    console.error('Error in getTeams:', error);
     return getMockTeams();
   }
 };

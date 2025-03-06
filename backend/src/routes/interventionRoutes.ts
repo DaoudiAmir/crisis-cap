@@ -11,6 +11,7 @@ import {
   assignResourceSchema,
   interventionQuerySchema
 } from '../schemas/interventionSchema';
+import { validateInterventionData } from '../middleware/interventionValidation';
 
 const router = express.Router();
 
@@ -26,7 +27,7 @@ router
   )
   .post(
     restrictTo(UserRole.TEAM_LEADER, UserRole.OFFICER),
-    validateRequest(createInterventionSchema),
+    validateInterventionData,
     InterventionController.createIntervention
   );
 
