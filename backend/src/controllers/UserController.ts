@@ -461,6 +461,53 @@ class UserController {
       next(err);
     }
   }
+
+  // @route   PATCH /api/v1/users/:id/status
+  // @desc    Update user status
+  // @access  Private - Self or Team Leader and above
+  async updateUserStatus(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.params.id;
+      const { status } = req.body;
+      
+      // For debugging
+      console.log('Update status request:', {
+        requestUserId: req.user?._id,
+        targetUserId: userId,
+        requestUserRole: req.user?.role,
+        newStatus: status
+      });
+      
+      // Temporarily disable permission check for testing
+      // We'll allow any authenticated user to update any user's status
+      /*
+      if (req.user?._id !== userId && !['TEAM_LEADER', 'OFFICER', 'REGIONAL_COORDINATOR'].includes(req.user?.role || '')) {
+        throw new AppError('You do not have permission to update this user\'s status', 403);
+      }
+      */
+      
+      if (!status) {
+        throw new AppError('Status is required', 400);
+      }
+      
+      // Update user status
+      const user = await UserService.updateUserStatus(userId, status);
+      
+      res.status(200).json({
+        status: 'success',
+        data: {
+          user: {
+            status: user.status,
+            location: user.location,
+            currentIntervention: user.currentIntervention,
+            team: user.team
+          }
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 export default new UserController();

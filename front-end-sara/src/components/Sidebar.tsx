@@ -85,7 +85,7 @@ const Sidebar = () => {
           </Link>
         </li>
         <li>
-          <Link href="/AddIncidents" className={isActive("/AddIncidents") ? "active" : ""}>
+          <Link href="/AllIncidents?openModal=true" className={isActive("/AddIncidents") ? "active" : ""}>
             <FaClipboardList className="mr-2" />
             Ajouter une intervention
           </Link>

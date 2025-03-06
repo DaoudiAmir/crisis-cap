@@ -1,10 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import Footer from "@/components/Footer";
 import Head from "@/components/Head";
 
 const AddIncident = () => {
   const router = useRouter();
+  
+  // Add redirect effect
+  useEffect(() => {
+    // Redirect to AllIncidents page with modal open
+    router.replace("/AllIncidents?openModal=true");
+  }, [router]);
+  
   const [formData, setFormData] = useState({
     name: "",
     type: "",
@@ -20,7 +27,7 @@ const AddIncident = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     console.log("Incident added:", formData);
-    router.push("/incidents"); 
+    router.push("/AllIncidents?openModal=true");
   };
 
   return (

@@ -1,7 +1,7 @@
 import { Types, Document, HydratedDocument } from 'mongoose';
 import bcrypt from 'bcryptjs';
 import jwt, { SignOptions } from 'jsonwebtoken';
-import User, { IUser, UserRole } from '../models/User';
+import User, { IUser, UserRole, UserStatus } from '../models/User';
 import AppError from '../utils/AppError';
 import Team from '../models/Team';
 import Intervention from '../models/Intervention';
@@ -662,6 +662,51 @@ class UserService {
     // Update password
     user.password = hashedPassword;
     await user.save();
+  }
+
+  // Update user status
+  public async updateUserStatus(userId: string, status: string): Promise<SafeUser> {
+    // Map frontend status values to backend enum values
+    const statusMap: Record<string, string> = {
+      'AVAILABLE': 'available',
+      'ON_DUTY': 'on_duty',
+      'OFF_DUTY': 'off_duty',
+      'ON_BREAK': 'on_break',
+      'ON_LEAVE': 'on_leave'
+    };
+    
+    // Convert status to lowercase if it exists in the map
+    const mappedStatus = statusMap[status] || status.toLowerCase();
+    
+    console.log('Updating user status:', {
+      userId,
+      originalStatus: status,
+      mappedStatus
+    });
+    
+    // Validate the status against the enum
+    const validStatuses = Object.values(UserStatus);
+    if (!validStatuses.includes(mappedStatus as UserStatus)) {
+      throw new AppError(`Invalid status. Status must be one of: ${validStatuses.join(', ')}`, 400);
+    }
+    
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { status: mappedStatus },
+      { new: true, runValidators: true }
+    );
+    
+    if (!user) {
+      throw new AppError('User not found', 404);
+    }
+    
+    // Emit socket event for real-time updates
+    socketService.emitUserStatusChanged({
+      userId: user._id.toString(),
+      status: user.status
+    });
+    
+    return this.toSafeUser(user);
   }
 }
 

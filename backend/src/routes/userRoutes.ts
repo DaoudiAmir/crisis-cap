@@ -44,6 +44,7 @@ router.put('/password', UserController.changePassword);
 
 // User status
 router.get('/:id/status', UserController.getUserStatus);
+router.patch('/:id/status', UserController.updateUserStatus);
 
 // Routes with role-based access
 router.post(

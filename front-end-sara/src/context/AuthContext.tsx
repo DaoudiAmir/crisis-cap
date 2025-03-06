@@ -9,6 +9,26 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
 // Configure axios defaults for CORS
 axios.defaults.withCredentials = true; // This allows cookies to be sent with requests
 
+// Set up axios interceptor for authentication
+const setupAxiosInterceptors = (token: string | null) => {
+  // Remove any existing interceptors
+  axios.interceptors.request.handlers = [];
+  
+  // Add request interceptor
+  axios.interceptors.request.use(
+    (config) => {
+      // If token exists, add it to the headers
+      if (token) {
+        config.headers['Authorization'] = `Bearer ${token}`;
+      }
+      return config;
+    },
+    (error) => {
+      return Promise.reject(error);
+    }
+  );
+};
+
 // Map backend role values to frontend display values
 export const mapRoleToDisplay = (backendRole: string): string => {
   switch (backendRole) {
@@ -67,7 +87,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const router = useRouter();
+
+  // Initialize axios interceptor with token from localStorage on mount
+  useEffect(() => {
+    const storedToken = localStorage.getItem('auth_token');
+    if (storedToken) {
+      setToken(storedToken);
+      setupAxiosInterceptors(storedToken);
+    }
+  }, []);
+
+  // Update axios interceptor whenever token changes
+  useEffect(() => {
+    setupAxiosInterceptors(token);
+  }, [token]);
 
   // Check if user is already logged in on component mount
   const checkAuth = async () => {
@@ -130,6 +165,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
       
       if (response.data && response.data.user) {
+        // Store token in localStorage
+        if (response.data.token) {
+          localStorage.setItem('auth_token', response.data.token);
+          setToken(response.data.token);
+        }
+        
         // Update user state
         const userData = response.data.user;
         if (userData.role) {
@@ -160,6 +201,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const response = await axios.post(`${API_URL}/auth/register`, userData);
       
       if (response.data && response.data.user) {
+        // Store token in localStorage
+        if (response.data.token) {
+          localStorage.setItem('auth_token', response.data.token);
+          setToken(response.data.token);
+        }
+        
         // Update user state
         const user = response.data.user;
         if (user.role) {
@@ -185,8 +232,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Call logout API
       await axios.post(`${API_URL}/auth/logout`);
       
-      // Clear user data
+      // Clear user data and token
       setUser(null);
+      setToken(null);
+      localStorage.removeItem('auth_token');
       
       // Redirect to login page
       router.push('/LoginPage');

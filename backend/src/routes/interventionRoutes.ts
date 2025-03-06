@@ -96,6 +96,7 @@ router.get(
 router.get(
   '/stats',
   restrictTo(UserRole.OFFICER, UserRole.REGIONAL_COORDINATOR),
+  validateRequest(interventionQuerySchema),
   InterventionController.getStats
 );
 

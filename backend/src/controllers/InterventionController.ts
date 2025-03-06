@@ -265,23 +265,24 @@ class InterventionController {
   // @access  Private
   async getActiveInterventions(req: Request, res: Response, next: NextFunction) {
     try {
-      // Get active interventions (in progress, dispatched, etc.)
+      console.log('Getting active interventions');
+      
+      // Get active interventions (status is not 'completed' or 'cancelled')
+      const activeStatuses = ['pending', 'dispatched', 'en_route', 'on_site', 'in_progress'];
+      
       const interventions = await InterventionService.getInterventions({
-        status: [
-          InterventionStatus.IN_PROGRESS,
-          InterventionStatus.DISPATCHED,
-          InterventionStatus.PENDING,
-          InterventionStatus.EN_ROUTE,
-          InterventionStatus.ON_SITE
-        ]
-      }) || [];
+        status: activeStatuses
+      });
       
       res.status(200).json({
         status: 'success',
-        data: { interventions }
+        results: interventions.length,
+        data: {
+          interventions
+        }
       });
     } catch (err) {
-      console.error("Active interventions error:", err);
+      console.error('Error getting active interventions:', err);
       next(err);
     }
   }
