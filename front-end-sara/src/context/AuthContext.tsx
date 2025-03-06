@@ -88,7 +88,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       return false;
     } catch (err) {
-      console.error('Authentication check failed:', err);
+      // Don't log errors for 401 (unauthorized) as this is expected for non-logged in users
+      if (axios.isAxiosError(err) && err.response?.status !== 401) {
+        console.error('Authentication check failed:', err);
+      }
       return false;
     } finally {
       setIsLoading(false);
@@ -97,8 +100,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   
   // Check authentication on mount and when route changes
   useEffect(() => {
-    checkAuth();
-  }, []);
+    // Define public pages that don't require authentication
+    const isPublicPage = 
+      router.pathname === '/LoginPage' || 
+      router.pathname === '/SignupPage' || 
+      router.pathname === '/' ||
+      router.pathname === '/HomePage';
+    
+    // Only show loading state for protected pages
+    if (!isPublicPage) {
+      setIsLoading(true);
+    }
+    
+    checkAuth().finally(() => {
+      if (!isPublicPage) {
+        setIsLoading(false);
+      }
+    });
+  }, [router.pathname]);
 
   const login = async (email: string, password: string) => {
     try {
