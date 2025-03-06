@@ -17,7 +17,9 @@ import {
   FaBook,
   FaInfoCircle,
   FaPlug,
-  FaCode
+  FaCode,
+  FaTools,
+  FaBoxOpen
 } from "react-icons/fa";
 
 const Sidebar = () => {
@@ -31,8 +33,13 @@ const Sidebar = () => {
   
   // Handle logout
   const handleLogout = async () => {
-    await logout();
-    router.push("/LoginPage");
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Error during logout:', error);
+      // Force navigation to login page even if logout fails
+      router.push("/LoginPage");
+    }
   };
 
   return (
@@ -90,6 +97,12 @@ const Sidebar = () => {
             Ajouter une intervention
           </Link>
         </li>
+        <li>
+          <Link href="/intervention-test" className={isActive("/intervention-test") ? "active" : ""}>
+            <FaFire className="mr-2" />
+            Test d'intervention
+          </Link>
+        </li>
         
         {/* Teams */}
         <li className="menu-title">
@@ -114,8 +127,14 @@ const Sidebar = () => {
         </li>
         <li>
           <Link href="/equipment" className={isActive("/equipment") ? "active" : ""}>
-            <FaClipboardList className="mr-2" />
+            <FaTools className="mr-2" />
             Équipements
+          </Link>
+        </li>
+        <li>
+          <Link href="/RessourceManagement" className={isActive("/RessourceManagement") ? "active" : ""}>
+            <FaBoxOpen className="mr-2" />
+            Gestion des ressources
           </Link>
         </li>
         <li>

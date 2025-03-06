@@ -5,9 +5,10 @@ import dynamic from "next/dynamic";
 import Sidebar from "@/components/Sidebar";
 import { getAllInterventions, createIntervention, testInterventionCreation } from "@/services/interventionService";
 import { InterventionType, CreateInterventionPayload } from "@/types/intervention";
+import { getAvailableResources, getTeams, Resource, Team } from "@/services/resourceService";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 import { useAuth } from "@/context/AuthContext";
-import { FaSearch, FaPlus } from "react-icons/fa";
+import { FaSearch, FaPlus, FaUserPlus, FaAmbulance } from "react-icons/fa";
 import { useToast } from "@/components/Toast";
 
 // Dynamically import the Map component with ssr: false to prevent "window is not defined" error
@@ -26,6 +27,9 @@ const AllIncidents = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [mapView, setMapView] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [availableResources, setAvailableResources] = useState<Resource[]>([]);
+  const [availableTeams, setAvailableTeams] = useState<Team[]>([]);
+  const [isLoadingResources, setIsLoadingResources] = useState(false);
   
   // Form state
   const [formData, setFormData] = useState<CreateInterventionPayload>({
@@ -34,19 +38,20 @@ const AllIncidents = () => {
     type: "fire",
     priority: "MEDIUM",
     location: {
-      latitude: 46.603354,
-      longitude: 1.888334,
-      address: "",
-      coordinates: [1.888334, 46.603354]
+      type: "Point",
+      coordinates: [1.888334, 46.603354], // GeoJSON format [longitude, latitude]
+      address: ""
     },
-    regionId: "507f1f77bcf86cd799439011", // Default region ID in MongoDB format
+    region: "507f1f77bcf86cd799439011", // Default region ID in MongoDB format
     station: "507f1f77bcf86cd799439011", // Default station ID in MongoDB format
     commander: "507f1f77bcf86cd799439011", // Default commander ID in MongoDB format
     startTime: new Date().toISOString(),
     estimatedDuration: 60, // Default 60 minutes
     riskLevel: "medium",
     hazards: [],
-    status: "pending"
+    status: "pending",
+    resources: [],
+    teams: []
   });
 
   const toast = useToast();
@@ -74,6 +79,31 @@ const AllIncidents = () => {
       setLoading(false);
     }
   };
+
+  // Fetch available resources and teams
+  const fetchResourcesAndTeams = async () => {
+    setIsLoadingResources(true);
+    try {
+      const [resourcesData, teamsData] = await Promise.all([
+        getAvailableResources(),
+        getTeams()
+      ]);
+      
+      setAvailableResources(resourcesData);
+      setAvailableTeams(teamsData);
+    } catch (error) {
+      console.error('Error fetching resources and teams:', error);
+    } finally {
+      setIsLoadingResources(false);
+    }
+  };
+
+  // Load resources and teams when modal opens
+  useEffect(() => {
+    if (isModalOpen) {
+      fetchResourcesAndTeams();
+    }
+  }, [isModalOpen]);
 
   // Check URL parameter for opening modal
   useEffect(() => {
@@ -124,80 +154,77 @@ const AllIncidents = () => {
     }));
   };
 
+  // Toggle resource selection
+  const toggleResourceSelection = (resource: Resource) => {
+    setFormData(prev => {
+      const currentResources = prev.resources || [];
+      const isSelected = currentResources.some(r => r.resourceId === resource._id);
+      
+      if (isSelected) {
+        // Remove resource
+        return {
+          ...prev,
+          resources: currentResources.filter(r => r.resourceId !== resource._id)
+        };
+      } else {
+        // Add resource
+        return {
+          ...prev,
+          resources: [
+            ...currentResources,
+            {
+              resourceId: resource._id,
+              resourceType: resource.type
+            }
+          ]
+        };
+      }
+    });
+  };
+
+  // Toggle team selection
+  const toggleTeamSelection = (team: Team) => {
+    setFormData(prev => {
+      const currentTeams = prev.teams || [];
+      const isSelected = currentTeams.some(t => t.teamId === team._id);
+      
+      if (isSelected) {
+        // Remove team
+        return {
+          ...prev,
+          teams: currentTeams.filter(t => t.teamId !== team._id)
+        };
+      } else {
+        // Add team
+        return {
+          ...prev,
+          teams: [
+            ...currentTeams,
+            {
+              teamId: team._id,
+              role: 'support'
+            }
+          ]
+        };
+      }
+    });
+  };
+
+  // Function to handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-
+    
     try {
-      // Log the form data for debugging
-      console.log("Form data before submission:", {
-        title: formData.title,
-        description: formData.description,
-        type: formData.type,
-        priority: formData.priority,
-        location: formData.location,
-        regionId: formData.regionId,
-        station: formData.station,
-        commander: formData.commander,
-        startTime: formData.startTime,
-        estimatedDuration: formData.estimatedDuration,
-        riskLevel: formData.riskLevel,
-        status: formData.status
-      });
-
-      // Validate required fields
-      if (!formData.title || !formData.description || !formData.priority || !formData.location.address) {
-        setError("Please fill in all required fields");
-        toast({
-          title: "Validation Error",
-          description: "Please fill in all required fields",
-          status: "error",
-          duration: 5000,
-          isClosable: true,
-        });
-        setLoading(false);
-        return;
-      }
-
-      // Validate title length (3-200 characters)
-      if (formData.title.length < 3 || formData.title.length > 200) {
-        setError("Title must be between 3 and 200 characters");
-        toast({
-          title: "Validation Error",
-          description: "Title must be between 3 and 200 characters",
-          status: "error",
-          duration: 5000,
-          isClosable: true,
-        });
-        setLoading(false);
-        return;
-      }
-
-      // Validate description length (10-1000 characters)
-      if (formData.description.length < 10 || formData.description.length > 1000) {
-        setError("Description must be between 10 and 1000 characters");
-        toast({
-          title: "Validation Error",
-          description: "Description must be between 10 and 1000 characters",
-          status: "error",
-          duration: 5000,
-          isClosable: true,
-        });
-        setLoading(false);
-        return;
-      }
-
-      // Validate coordinates
+      // Check that we have valid coordinates
       if (!formData.location.coordinates || 
-          !Array.isArray(formData.location.coordinates) || 
-          formData.location.coordinates.length !== 2 ||
-          formData.location.coordinates.some(coord => coord === null || isNaN(Number(coord)))) {
-        console.warn("Invalid coordinates detected:", formData.location.coordinates);
-        
+          formData.location.coordinates[0] === 0 || 
+          formData.location.coordinates[1] === 0) {
+        console.warn("Using default coordinates for France");
         toast({
           title: "Coordinate Warning",
-          description: "Using default coordinates for France. Please select a valid address.",
+          description: "Using default coordinates for France. Please select a valid address for better accuracy.",
           status: "warning",
           duration: 5000,
           isClosable: true,
@@ -208,17 +235,23 @@ const AllIncidents = () => {
       const result = await createIntervention({
         title: formData.title,
         description: formData.description,
-        type: formData.type,
-        priority: formData.priority,
-        location: formData.location,
-        regionId: formData.regionId,
-        station: formData.station,
-        commander: formData.commander,
-        startTime: formData.startTime,
-        estimatedDuration: formData.estimatedDuration,
-        riskLevel: formData.riskLevel,
-        status: formData.status,
-        hazards: formData.hazards || []
+        type: formData.type || "fire", // Default type if not provided
+        priority: formData.priority, // Our service will convert to uppercase
+        location: {
+          type: "Point",
+          coordinates: formData.location.coordinates || [1.888334, 46.603354],
+          address: formData.location.address || "Address not specified"
+        },
+        region: formData.region || "507f1f77bcf86cd799439011", // Required field
+        station: formData.station || "507f1f77bcf86cd799439011", // Required field
+        commander: formData.commander || "507f1f77bcf86cd799439011", // Required field
+        startTime: formData.startTime || new Date().toISOString(),
+        estimatedDuration: formData.estimatedDuration || 60,
+        riskLevel: formData.riskLevel || "medium",
+        hazards: formData.hazards || [],
+        status: "pending",
+        resources: formData.resources || [],
+        teams: formData.teams || []
       });
       
       if (result.success) {
@@ -233,60 +266,47 @@ const AllIncidents = () => {
           isClosable: true,
         });
         
-        // If there was an API error but we still have mock data
-        if (result.error) {
-          console.warn(result.error);
-          toast({
-            title: "API Warning",
-            description: result.error,
-            status: "warning",
-            duration: 7000,
-            isClosable: true,
-          });
-        }
-        
-        // Add the new intervention to the list
-        if (result.data) {
-          setIncidents(prev => [result.data, ...prev]);
-        }
-        
-        // Reset form and close modal
+        // Reset form
         setFormData({
           title: "",
           description: "",
           type: "fire",
           priority: "MEDIUM",
           location: {
-            address: "",
-            latitude: 46.603354,
-            longitude: 1.888334,
-            coordinates: [1.888334, 46.603354]
+            type: "Point",
+            coordinates: [1.888334, 46.603354], // GeoJSON format [longitude, latitude]
+            address: ""
           },
-          regionId: "507f1f77bcf86cd799439011",
-          station: "507f1f77bcf86cd799439011",
-          commander: "507f1f77bcf86cd799439011",
+          region: "507f1f77bcf86cd799439011", // Default region ID in MongoDB format
+          station: "507f1f77bcf86cd799439011", // Default station ID in MongoDB format
+          commander: "507f1f77bcf86cd799439011", // Default commander ID in MongoDB format
           startTime: new Date().toISOString(),
-          estimatedDuration: 60,
+          estimatedDuration: 60, // Default 60 minutes
           riskLevel: "medium",
           hazards: [],
-          status: "pending"
+          status: "pending",
+          resources: [],
+          teams: []
         });
+        
         setIsModalOpen(false);
+        
+        // Refresh incident list
+        fetchIncidents();
+        
       } else {
-        // This shouldn't happen with our new implementation, but just in case
-        setError("Failed to create intervention");
+        setError(result.error || "Failed to create intervention");
         toast({
           title: "Error",
-          description: "Failed to create intervention",
+          description: result.error || "Failed to create intervention",
           status: "error",
           duration: 5000,
           isClosable: true,
         });
       }
     } catch (err: any) {
-      console.error("Error creating intervention:", err);
+      console.error("Error submitting form:", err);
       setError(err.message || "An unexpected error occurred");
-      
       toast({
         title: "Error",
         description: err.message || "An unexpected error occurred",
@@ -347,45 +367,15 @@ const AllIncidents = () => {
                   </button>
                   {process.env.NODE_ENV === 'development' && (
                     <button 
-                      className="btn btn-outline btn-sm ml-2"
-                      onClick={async () => {
-                        setLoading(true);
-                        try {
-                          const result = await testInterventionCreation();
-                          if (result.success) {
-                            toast({
-                              title: "Test Successful",
-                              description: "API test completed successfully",
-                              status: "success",
-                              duration: 5000,
-                              isClosable: true,
-                            });
-                            console.log("Test result:", result.data);
-                          } else {
-                            toast({
-                              title: "Test Failed",
-                              description: result.error || "Unknown error",
-                              status: "error",
-                              duration: 5000,
-                              isClosable: true,
-                            });
-                            console.error("Test error:", result);
-                          }
-                        } catch (err) {
-                          console.error("Error running test:", err);
-                          toast({
-                            title: "Test Error",
-                            description: "Failed to run API test",
-                            status: "error",
-                            duration: 5000,
-                            isClosable: true,
-                          });
-                        } finally {
-                          setLoading(false);
+                      type="button"
+                      className="mt-4 bg-purple-500 text-white p-2 rounded hover:bg-purple-600"
+                      onClick={() => {
+                        if (typeof window !== 'undefined') {
+                          (window as any).testInterventionCreation();
                         }
                       }}
                     >
-                      Test API
+                      Debug API
                     </button>
                   )}
                 </>
@@ -637,6 +627,87 @@ const AllIncidents = () => {
                 </button>
               </div>
             </form>
+            
+            {/* Resource Selection Section */}
+            <div className="mt-6 border-t border-gray-200 pt-4">
+              <h3 className="text-lg font-semibold mb-3 flex items-center">
+                <FaUserPlus className="mr-2" /> Resource Allocation
+              </h3>
+              
+              {isLoadingResources ? (
+                <div className="text-center py-4">Loading resources...</div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-60 overflow-y-auto">
+                  {availableResources.map(resource => (
+                    <div 
+                      key={resource._id}
+                      className={`border p-2 rounded cursor-pointer ${
+                        formData.resources?.some(r => r.resourceId === resource._id)
+                          ? 'bg-blue-100 border-blue-500'
+                          : 'border-gray-200 hover:bg-gray-50'
+                      }`}
+                      onClick={() => toggleResourceSelection(resource)}
+                    >
+                      <div className="flex items-center">
+                        <div className={`w-3 h-3 rounded-full mr-2 ${
+                          resource.status === 'available' ? 'bg-green-500' : 'bg-yellow-500'
+                        }`} />
+                        <div>
+                          <p className="font-medium">{resource.name}</p>
+                          <p className="text-xs text-gray-500">Type: {resource.type}</p>
+                          {resource.capabilities && resource.capabilities.length > 0 && (
+                            <p className="text-xs text-gray-500">
+                              Skills: {resource.capabilities.join(', ')}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Team Selection Section */}
+            <div className="mt-4 border-t border-gray-200 pt-4">
+              <h3 className="text-lg font-semibold mb-3 flex items-center">
+                <FaAmbulance className="mr-2" /> Team Assignment
+              </h3>
+              
+              {isLoadingResources ? (
+                <div className="text-center py-4">Loading teams...</div>
+              ) : (
+                <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto">
+                  {availableTeams.map(team => (
+                    <div 
+                      key={team._id}
+                      className={`border p-2 rounded cursor-pointer ${
+                        formData.teams?.some(t => t.teamId === team._id)
+                          ? 'bg-blue-100 border-blue-500'
+                          : 'border-gray-200 hover:bg-gray-50'
+                      }`}
+                      onClick={() => toggleTeamSelection(team)}
+                    >
+                      <div className="flex items-center">
+                        <div className={`w-3 h-3 rounded-full mr-2 ${
+                          team.status === 'active' ? 'bg-green-500' : 
+                          team.status === 'standby' ? 'bg-yellow-500' : 'bg-red-500'
+                        }`} />
+                        <div className="flex-1">
+                          <p className="font-medium">{team.name}</p>
+                          <p className="text-xs text-gray-500">Members: {team.members.length}</p>
+                          {team.specializations && team.specializations.length > 0 && (
+                            <p className="text-xs text-gray-500">
+                              Specializations: {team.specializations.join(', ')}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -116,44 +116,48 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
       setError(null);
       
       // Default coordinates (center of France)
-      let defaultCoordinates = [1.888334, 46.603354];
+      let defaultCoordinates: [number, number] = [1.888334, 46.603354];
+      
+      // First check if we have mock coordinates for this address
+      const mockCoords = getMockCoordinates(selectedAddress);
+      if (mockCoords && mockCoords.latitude && mockCoords.longitude) {
+        defaultCoordinates = [mockCoords.longitude, mockCoords.latitude];
+      }
       
       try {
         // Try to geocode the address
         const geocodeResponse = await geocodeAddress(selectedAddress);
-        const geocodeData: GeocodingResult = geocodeResponse;
         
-        if (geocodeData && geocodeData.latitude && geocodeData.longitude) {
-          const location = geocodeData;
+        if (geocodeResponse && 
+            geocodeResponse.latitude && 
+            geocodeResponse.longitude && 
+            !isNaN(Number(geocodeResponse.latitude)) && 
+            !isNaN(Number(geocodeResponse.longitude))) {
           
-          // Ensure we have valid coordinates
-          if (location.longitude && location.latitude && 
-              !isNaN(Number(location.longitude)) && !isNaN(Number(location.latitude))) {
-            
-            // Format coordinates as [longitude, latitude] for GeoJSON
-            const coordinates = [Number(location.longitude), Number(location.latitude)];
-            
-            // Log successful geocoding
-            console.log('Geocoded address:', selectedAddress);
-            console.log('Coordinates:', coordinates);
-            
-            // Update the location with coordinates
-            const updatedLocation = {
-              latitude: Number(location.latitude),
-              longitude: Number(location.longitude),
-              address: selectedAddress,
-              coordinates: [Number(location.longitude), Number(location.latitude)] // Format as [longitude, latitude] for GeoJSON
-            };
-            
-            onAddressSelect(selectedAddress, updatedLocation);
-            
-            setLoading(false);
-            return;
-          } else {
-            console.warn('Invalid coordinates received from geocoding API:', location);
-          }
+          // Format coordinates as [longitude, latitude] for GeoJSON
+          const coordinates: [number, number] = [
+            Number(geocodeResponse.longitude), 
+            Number(geocodeResponse.latitude)
+          ];
+          
+          // Log successful geocoding
+          console.log('Geocoded address:', selectedAddress);
+          console.log('Coordinates:', coordinates);
+          
+          // Update the location with coordinates
+          const updatedLocation = {
+            latitude: Number(geocodeResponse.latitude),
+            longitude: Number(geocodeResponse.longitude),
+            address: selectedAddress,
+            coordinates: coordinates // Format as [longitude, latitude] for GeoJSON
+          };
+          
+          onAddressSelect(selectedAddress, updatedLocation);
+          setLoading(false);
+          setShowSuggestions(false);
+          return;
         } else {
-          console.warn('No results from geocoding API for address:', selectedAddress);
+          console.warn('Invalid coordinates received from geocoding API:', geocodeResponse);
         }
       } catch (error) {
         console.error('Error geocoding address:', error);
@@ -161,7 +165,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
       
       // If we reach here, geocoding failed or returned invalid coordinates
       // Use default coordinates as fallback
-      console.warn(`Using default coordinates for address: ${selectedAddress}`);
+      console.warn(`Using fallback coordinates for address: ${selectedAddress}`);
       
       const fallbackLocation = {
         latitude: defaultCoordinates[1],
@@ -175,12 +179,14 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
       console.error('Error in handleAddressSelect:', error);
       setError('Failed to get coordinates for this address');
       
-      // Even in case of error, still update with default coordinates
+      // Even in case of error, still update with default coordinates for France
+      const fallbackCoordinates: [number, number] = [1.888334, 46.603354];
+      
       const fallbackLocation = {
-        latitude: defaultCoordinates[1],
-        longitude: defaultCoordinates[0],
+        latitude: fallbackCoordinates[1],
+        longitude: fallbackCoordinates[0],
         address: selectedAddress,
-        coordinates: defaultCoordinates // Format as [longitude, latitude] for GeoJSON
+        coordinates: fallbackCoordinates
       };
       
       onAddressSelect(selectedAddress, fallbackLocation);

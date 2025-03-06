@@ -11,8 +11,17 @@ import dynamic from "next/dynamic";
 // Import map component dynamically to avoid SSR issues
 const MapSection = dynamic(() => import("@/components/Mapsection"), { ssr: false });
 
-// Define API URL
+// Define API URL handling
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+
+// Ensure consistent API base URL format
+const getApiEndpoint = (path: string) => {
+  // If API_URL already ends with '/api', just append '/v1' and the path
+  // Otherwise append '/api/v1' and the path
+  return API_URL.endsWith('/api')
+    ? `${API_URL}/v1${path}`
+    : `${API_URL}/api/v1${path}`;
+};
 
 // Define types for our data
 interface Intervention {
@@ -125,7 +134,7 @@ const Dashboard = () => {
       
       try {
         // Fetch recent interventions
-        const interventionsResponse = await axios.get(`${API_URL}/v1/interventions/recent`, {
+        const interventionsResponse = await axios.get(getApiEndpoint('/interventions/recent'), {
           withCredentials: true
         });
         
@@ -140,7 +149,7 @@ const Dashboard = () => {
       try {
         // Fetch user status
         if (user && user._id) {
-          const userStatusResponse = await axios.get(`${API_URL}/v1/users/${user._id}/status`, {
+          const userStatusResponse = await axios.get(getApiEndpoint(`/users/${user._id}/status`), {
             withCredentials: true
           });
           
@@ -150,7 +159,7 @@ const Dashboard = () => {
             // If user is in a team, fetch team members
             if (userStatusResponse.data.data.team && userStatusResponse.data.data.team._id) {
               try {
-                const teamResponse = await axios.get(`${API_URL}/v1/teams/${userStatusResponse.data.data.team._id}/members`, {
+                const teamResponse = await axios.get(getApiEndpoint(`/teams/${userStatusResponse.data.data.team._id}/members`), {
                   withCredentials: true
                 });
                 
@@ -237,7 +246,7 @@ const Dashboard = () => {
         hasToken: !!token
       });
       
-      await axios.patch(`${API_URL}/v1/users/${user?._id}/status`, {
+      await axios.patch(getApiEndpoint(`/users/${user?._id}/status`), {
         status: newStatus
       }, {
         withCredentials: true,

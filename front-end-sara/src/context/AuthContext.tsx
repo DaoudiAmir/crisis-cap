@@ -229,23 +229,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setIsLoading(true);
       
-      // Call logout API
-      await axios.post(`${API_URL}/auth/logout`);
+      // Call logout API with timeout and error handling
+      try {
+        await axios.post(`${API_URL}/auth/logout`, {}, {
+          timeout: 3000 // 3 second timeout
+        });
+        console.log('Successfully logged out from API');
+      } catch (apiError: any) {
+        // Log the error but continue with local logout
+        console.warn('Error logging out from API:', apiError.message);
+        if (apiError.response?.status === 429) {
+          console.warn('Rate limit exceeded. Proceeding with local logout only.');
+        }
+        // Don't rethrow - we still want to clear local state
+      }
       
-      // Clear user data and token
+      // Clear user data and token regardless of API success
       setUser(null);
       setToken(null);
       localStorage.removeItem('auth_token');
       
       // Redirect to login page
       router.push('/LoginPage');
-    } catch (err) {
-      console.error('Logout error:', err);
+    } catch (error) {
+      console.error('Unexpected error during logout:', error);
+      // Still try to clear local state in case of unexpected errors
+      setUser(null);
+      setToken(null);
+      localStorage.removeItem('auth_token');
+      router.push('/LoginPage');
     } finally {
       setIsLoading(false);
     }
-    
-    return Promise.resolve();
   };
 
   const clearError = () => {

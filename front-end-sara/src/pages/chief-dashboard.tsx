@@ -10,6 +10,15 @@ import { FaFire, FaUsers, FaAmbulance, FaMapMarkerAlt, FaExclamationTriangle, Fa
 // Define API URL
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
 
+// Ensure consistent API base URL format
+const getApiEndpoint = (path: string) => {
+  // If API_URL already ends with '/api', just append '/v1' and the path
+  // Otherwise append '/api/v1' and the path
+  return API_URL.endsWith('/api')
+    ? `${API_URL}/v1${path}`
+    : `${API_URL}/api/v1${path}`;
+};
+
 // Define types
 interface Intervention {
   _id: string;
@@ -77,14 +86,14 @@ const ChiefDashboard = () => {
       setDashboardLoading(true);
       
       // Fetch active interventions
-      const interventionsResponse = await axios.get(`${API_URL}/v1/interventions?status=IN_PROGRESS,DISPATCHED&limit=5`);
+      const interventionsResponse = await axios.get(getApiEndpoint('/interventions?status=IN_PROGRESS,DISPATCHED&limit=5'));
       
       if (interventionsResponse.data && interventionsResponse.data.data) {
         setActiveInterventions(interventionsResponse.data.data.interventions);
       }
       
       // Fetch resource summary
-      const resourcesResponse = await axios.get(`${API_URL}/v1/resources/summary`);
+      const resourcesResponse = await axios.get(getApiEndpoint('/resources/summary'));
       
       if (resourcesResponse.data && resourcesResponse.data.data) {
         setResourceSummary(resourcesResponse.data.data);

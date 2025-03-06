@@ -45,6 +45,12 @@ export interface Resource {
   arrivedAt?: Date;
 }
 
+export interface Team {
+  teamId: string;
+  role: string;
+  assignedAt: Date;
+}
+
 export interface Intervention {
   _id: string;
   code: string;
@@ -83,22 +89,38 @@ export interface Intervention {
 export interface CreateInterventionPayload {
   title: string;
   description: string;
-  type?: string;
+  type: string;
   priority: string;
   location: {
-    latitude?: number;
-    longitude?: number;
-    address?: string;
-    coordinates?: [number, number]; // [longitude, latitude] for GeoJSON compatibility
+    type: string; // "Point" for GeoJSON compatibility
+    coordinates: [number, number]; // [longitude, latitude] for GeoJSON compatibility
+    address: string;
+    accessInstructions?: string;
   };
-  regionId?: string; // MongoDB ObjectId format
-  station?: string; // MongoDB ObjectId format
-  startTime?: string; // ISO date string
+  region: string; // MongoDB ObjectId
+  station: string; // MongoDB ObjectId format
+  startTime: string; // ISO date string
+  commander: string; // MongoDB ObjectId format for the commander
   estimatedDuration?: number; // Duration in minutes
-  commander?: string; // MongoDB ObjectId format for the commander (required by backend)
   riskLevel?: 'low' | 'medium' | 'high' | 'extreme';
   hazards?: string[];
   status?: string;
+  resources?: Array<{
+    resourceId: string;
+    resourceType: 'User' | 'Vehicle';
+  }>;
+  teams?: Array<{
+    teamId: string;
+    role: string;
+  }>;
+  createdBy?: string; // The user who created the intervention
+  weatherConditions?: {
+    temperature?: number;
+    windSpeed?: number;
+    windDirection?: string;
+    precipitation?: string;
+    visibility?: string;
+  };
 }
 
 export interface InterventionType {

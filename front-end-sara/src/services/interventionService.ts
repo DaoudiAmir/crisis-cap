@@ -1,11 +1,19 @@
 import axios from 'axios';
 import { CreateInterventionPayload, InterventionType } from '@/types/intervention';
 
-// Fix API_URL to use the base URL without any path prefixes
+// Base API URL configuration
+// NOTE: The backend API is accessible at http://localhost:3000/api/v1
+// So we ensure API_URL is just the base without the /api part
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
-// The correct API endpoint without the /api prefix to prevent duplication
-const API_ENDPOINT = `${API_URL}/v1/interventions`;
+// Different parts of the app define API_URL either as 'http://localhost:3000/api' 
+// or just 'http://localhost:3000', so we need to check and build accordingly
+const API_BASE = API_URL.endsWith('/api') 
+  ? `${API_URL}/v1` 
+  : `${API_URL}/api/v1`;
+
+// The correct API endpoint
+const API_ENDPOINT = `${API_BASE}/interventions`;
 
 // Helper function to get auth token
 const getAuthToken = (): string | null => {
@@ -166,59 +174,116 @@ export interface CreateInterventionPayload {
  * @param data Intervention data
  * @returns Created intervention or null if error
  */
-export const createIntervention = async (data: CreateInterventionPayload): Promise<{ success: boolean; data?: InterventionType; error?: string }> => {
+export const createIntervention = async (
+  data: CreateInterventionPayload
+): Promise<{ success: boolean; data?: InterventionType; error?: string }> => {
   try {
-    // Extract coordinates for easier validation
-    let longitude = 1.888334; // Default to France center longitude
-    let latitude = 46.603354; // Default to France center latitude
+    console.log('Creating intervention with data:', data);
     
-    // Try to get coordinates from the data
-    if (data.location.coordinates && Array.isArray(data.location.coordinates) && data.location.coordinates.length === 2) {
-      const [lon, lat] = data.location.coordinates;
-      if (lon !== null && lat !== null && !isNaN(Number(lon)) && !isNaN(Number(lat))) {
-        longitude = Number(lon);
-        latitude = Number(lat);
+    // Set proper API endpoint
+    const API_ENDPOINT = `${API_BASE}/interventions`;
+    console.log('Using API endpoint:', API_ENDPOINT);
+    
+    // Generate a default MongoDB ObjectId if needed
+    const defaultObjectId = "507f1f77bcf86cd799439011";
+    
+    // Prepare location data - handle if the location is not yet in the expected format
+    let latitude = 46.603354; // Default to France's center if not available
+    let longitude = 1.888334;
+    
+    if (data.location) {
+      // If the coordinates are already in the right GeoJSON format
+      if (data.location.coordinates && 
+          Array.isArray(data.location.coordinates) && 
+          data.location.coordinates.length === 2 &&
+          data.location.coordinates[0] !== null &&
+          data.location.coordinates[1] !== null) {
+        longitude = data.location.coordinates[0];
+        latitude = data.location.coordinates[1];
+        console.log('Using provided coordinates:', longitude, latitude);
       }
-    } else if (data.location.longitude !== undefined && data.location.latitude !== undefined) {
-      if (data.location.longitude !== null && data.location.latitude !== null) {
-        longitude = Number(data.location.longitude);
-        latitude = Number(data.location.latitude);
+      // If the coordinates aren't in the location object yet but we need to construct them
+      // This handles transitioning from the old format to the new one
+      else if ('latitude' in data.location && 'longitude' in data.location && 
+               data.location.latitude !== undefined && data.location.longitude !== undefined &&
+               data.location.latitude !== null && data.location.longitude !== null) {
+        latitude = data.location.latitude;
+        longitude = data.location.longitude;
+        console.log('Using latitude/longitude from location object:', longitude, latitude);
       }
     }
     
-    // If coordinates are still null or undefined but we have an address, try to geocode it
-    if ((longitude === 1.888334 && latitude === 46.603354) && data.location.address) {
+    // If we have an address but no coordinates, try to geocode it
+    if (data.location && data.location.address && 
+        (!longitude || !latitude || longitude === 0 || latitude === 0 || 
+         longitude === null || latitude === null)) {
       try {
-        console.log('Attempting to geocode address:', data.location.address);
-        const coordinates = await geocodeAddress(data.location.address);
-        longitude = coordinates.longitude;
-        latitude = coordinates.latitude;
-      } catch (geocodeError) {
-        console.error('Failed to geocode address:', geocodeError);
+        console.log('Geocoding address:', data.location.address);
+        const coords = await geocodeAddress(data.location.address);
+        if (coords && coords.latitude && coords.longitude && 
+            !isNaN(coords.latitude) && !isNaN(coords.longitude)) {
+          latitude = coords.latitude;
+          longitude = coords.longitude;
+          console.log('Geocoded coordinates:', latitude, longitude);
+        } else {
+          console.warn('Geocoding returned invalid coordinates, using defaults');
+        }
+      } catch (error) {
+        console.warn('Error geocoding address:', error);
+        // Use default coordinates if geocoding fails
       }
     }
     
-    // Format the payload to match the backend schema exactly
+    // Ensure we have valid coordinates by checking for NaN, null, or undefined
+    if (isNaN(latitude) || isNaN(longitude) || latitude === null || longitude === null) {
+      console.warn('Invalid coordinates detected, using default coordinates for France');
+      latitude = 46.603354;
+      longitude = 1.888334;
+    }
+    
+    // Format date if needed
+    let startTime = data.startTime;
+    if (!startTime) {
+      startTime = new Date().toISOString();
+    } else if (typeof startTime === 'string') {
+      // Make sure we have a valid date format for the backend
+      const date = new Date(startTime);
+      if (!isNaN(date.getTime())) {
+        startTime = date.toISOString();
+      }
+    }
+    
+    // Format the payload to match EXACTLY the backend CreateInterventionDTO interface
+    // Provide default values for all required fields to prevent validation errors
     const payload = {
-      title: data.title,
-      description: data.description,
-      type: data.type || 'fire',
-      priority: data.priority.toUpperCase(),
+      title: data.title || "Intervention sans titre",
+      description: data.description || "Aucune description fournie", 
+      type: data.type || "other",
+      priority: (data.priority || "MEDIUM").toUpperCase(), // Schema expects uppercase enum values
       location: {
         type: "Point",
-        coordinates: [longitude, latitude], // GeoJSON format: [longitude, latitude]
-        address: data.location.address || 'Adresse non spécifiée'
+        coordinates: [longitude, latitude] as [number, number], // GeoJSON format: [longitude, latitude]
+        address: data.location?.address || 'Address not specified'
       },
-      // Required fields based on the Intervention model
-      region: data.regionId || "507f1f77bcf86cd799439011", // Map regionId to region as expected by backend
-      station: data.station || "507f1f77bcf86cd799439011", // Default MongoDB ObjectId
-      startTime: data.startTime || new Date().toISOString(),
-      commander: data.commander || "507f1f77bcf86cd799439011", // Default MongoDB ObjectId
-      // Optional fields with defaults
+      region: data.region || "default-region", // Use string ID instead of ObjectId
+      station: data.station || "default-station", // Use string ID instead of ObjectId
+      startTime: startTime,
+      commander: data.commander || defaultObjectId, // Required field as MongoDB ObjectId
       estimatedDuration: data.estimatedDuration || 60,
       riskLevel: data.riskLevel || "medium",
       hazards: data.hazards || [],
-      status: data.status || "pending"
+      status: data.status || "pending", // Default status
+      createdBy: data.createdBy || "system", // Use string ID instead of ObjectId
+      resources: data.resources || [],
+      teams: data.teams || [],
+      code: data.code || `INT-${Date.now().toString().slice(-6)}`, // Generate a default code if not provided
+      weatherConditions: data.weatherConditions || {
+        temperature: 20,
+        windSpeed: 10,
+        windDirection: "N",
+        precipitation: "none",
+        visibility: "good"
+      }
     };
 
     console.log('Creating intervention with payload:', JSON.stringify(payload, null, 2));
@@ -240,6 +305,13 @@ export const createIntervention = async (data: CreateInterventionPayload): Promi
     
     // Make the API call with the correct endpoint
     try {
+      // Debug information
+      console.log('Making API call to:', API_ENDPOINT);
+      console.log('Headers:', {
+        'Content-Type': 'application/json',
+        'Authorization': authToken ? `Bearer ${authToken.substring(0, 10)}...` : 'null'
+      });
+      
       const response = await axios.post(API_ENDPOINT, payload, {
         headers: {
           'Content-Type': 'application/json',
@@ -248,6 +320,54 @@ export const createIntervention = async (data: CreateInterventionPayload): Promi
       });
       
       console.log('Intervention created successfully:', response.data);
+      
+      // If we have resources, assign them to the intervention
+      if (data.resources && data.resources.length > 0 && response.data.data?.intervention?._id) {
+        try {
+          const interventionId = response.data.data.intervention._id;
+          
+          console.log('Assigning resources to intervention:', interventionId);
+          // Import and use the resourceService here
+          const { assignResourcesToIntervention } = await import('./resourceService');
+          
+          const resourceResult = await assignResourcesToIntervention({
+            interventionId,
+            resources: data.resources
+          });
+          
+          if (!resourceResult.success) {
+            console.warn('Failed to assign resources:', resourceResult.error);
+          }
+        } catch (resourceError) {
+          console.error('Error assigning resources:', resourceError);
+        }
+      }
+      
+      // If we have teams, assign them to the intervention
+      if (data.teams && data.teams.length > 0 && response.data.data?.intervention?._id) {
+        try {
+          const interventionId = response.data.data.intervention._id;
+          
+          console.log('Assigning teams to intervention:', interventionId);
+          // Import and use the resourceService here
+          const { assignTeamToIntervention } = await import('./resourceService');
+          
+          for (const team of data.teams) {
+            const teamResult = await assignTeamToIntervention({
+              interventionId,
+              teamId: team.teamId,
+              role: team.role
+            });
+            
+            if (!teamResult.success) {
+              console.warn(`Failed to assign team ${team.teamId}:`, teamResult.error);
+            }
+          }
+        } catch (teamError) {
+          console.error('Error assigning teams:', teamError);
+        }
+      }
+      
       return { 
         success: true, 
         data: response.data.data?.intervention || response.data 
@@ -257,9 +377,9 @@ export const createIntervention = async (data: CreateInterventionPayload): Promi
       
       // Extract error message for better user feedback
       const errorMessage = error.response?.data?.message || 
-                           error.response?.data?.error || 
-                           error.message || 
-                           'Failed to create intervention';
+                          error.response?.data?.error || 
+                          error.message || 
+                          'Failed to create intervention';
       
       console.log('Error details:', {
         status: error.response?.status,
@@ -283,16 +403,133 @@ export const createIntervention = async (data: CreateInterventionPayload): Promi
     return { 
       success: true, 
       data: mockData,
-      error: `Unexpected error: ${error.message}. Using mock data instead.` 
+      error: `Exception: ${error.message}. Using mock data instead.`
     };
   }
 };
 
 /**
+ * Test function to debug intervention creation API
+ * Call this from the browser console to test API directly
+ */
+export const testInterventionCreation = async () => {
+  console.log('Testing intervention creation...');
+  
+  // Create a test payload that matches exactly what the backend expects
+  const testPayload = {
+    title: "Test Intervention",
+    description: "This is a test intervention created to debug the API",
+    type: "fire",
+    priority: "HIGH", // Using uppercase as per the schema
+    location: {
+      type: "Point",
+      coordinates: [2.3522, 48.8566], // Paris coordinates in GeoJSON format [longitude, latitude]
+      address: "Paris, France"
+    },
+    region: "507f1f77bcf86cd799439011", // Sample MongoDB ObjectId
+    station: "507f1f77bcf86cd799439011", // Station ID
+    commander: "507f1f77bcf86cd799439011", // Commander ID
+    startTime: new Date().toISOString(),
+    estimatedDuration: 60,
+    riskLevel: "medium",
+    hazards: [],
+    status: "pending",
+    createdBy: "507f1f77bcf86cd799439011" // Creator ID
+  };
+  
+  console.log('Test payload:', JSON.stringify(testPayload, null, 2));
+  
+  try {
+    // Get authentication token
+    const authToken = getAuthToken();
+    if (!authToken) {
+      console.error('No auth token found, cannot proceed with API test');
+      return { success: false, error: 'No authentication token found' };
+    }
+    
+    console.log('Making direct API call to debug the issue...');
+    
+    const response = await axios.post(API_ENDPOINT, testPayload, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      }
+    });
+    
+    console.log('Test succeeded with response:', response.data);
+    return { success: true, data: response.data };
+  } catch (error: any) {
+    console.error('Test failed with error:', error);
+    
+    // Log detailed error information
+    if (error.response) {
+      console.error('Response error data:', error.response.data);
+      console.error('Response status:', error.response.status);
+      console.error('Response headers:', error.response.headers);
+    } else if (error.request) {
+      console.error('No response received for request:', error.request);
+    } else {
+      console.error('Error details:', error.message);
+    }
+    
+    return { 
+      success: false, 
+      error: error.response?.data?.message || error.message 
+    };
+  }
+};
+
+// Make the test function available in the global scope for browser console testing
+if (typeof window !== 'undefined') {
+  (window as any).testInterventionCreation = testInterventionCreation;
+  
+  // Add a direct API test function that bypasses our service
+  (window as any).testDirectApiCall = async (customPayload?: any) => {
+    const authToken = getAuthToken();
+    if (!authToken) {
+      console.error('No auth token found!');
+      return { success: false, error: 'No authentication token found' };
+    }
+    
+    const defaultPayload = {
+      title: "Minimal Test",
+      description: "Minimal test with only required fields",
+      type: "fire",
+      location: {
+        type: "Point",
+        coordinates: [2.3522, 48.8566] // Paris [longitude, latitude]
+      },
+      region: "507f1f77bcf86cd799439011",
+      startTime: new Date().toISOString()
+    };
+    
+    const payload = customPayload || defaultPayload;
+    console.log('Testing direct API call with payload:', JSON.stringify(payload, null, 2));
+    
+    try {
+      const response = await axios.post(API_ENDPOINT, payload, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
+      console.log('Direct API call succeeded:', response.data);
+      return { success: true, data: response.data };
+    } catch (error: any) {
+      console.error('Direct API call failed:', error);
+      if (error.response) {
+        console.error('Server responded with:', error.response.status, error.response.data);
+      }
+      return { success: false, error: error.response?.data || error.message };
+    }
+  };
+}
+
+/**
  * Test function to verify intervention creation payload structure
  * This helps debug the 500 server error issue
  */
-export const testInterventionCreation = async (): Promise<{ success: boolean; data?: any; error?: string }> => {
+export const testInterventionCreation2 = async (): Promise<{ success: boolean; data?: any; error?: string }> => {
   try {
     // Create a minimal test payload with all required fields
     const testPayload = {
