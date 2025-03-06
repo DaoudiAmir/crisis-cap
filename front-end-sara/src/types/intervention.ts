@@ -45,7 +45,7 @@ export interface Resource {
   arrivedAt?: Date;
 }
 
-export interface InterventionType {
+export interface Intervention {
   _id: string;
   code: string;
   title: string;
@@ -55,22 +55,17 @@ export interface InterventionType {
   priority: InterventionPriority;
   location: {
     type: string;
-    coordinates: [number, number];
+    coordinates: [number, number]; // [longitude, latitude] for GeoJSON compatibility
     address: string;
     accessInstructions?: string;
   };
-  region: string;
-  station: string;
+  region: string; // MongoDB ObjectId
+  station: string; // MongoDB ObjectId
   startTime: Date;
   endTime?: Date;
   estimatedDuration?: number;
-  commander?: string;
-  teams?: Array<{
-    teamId: string;
-    role: string;
-    assignedAt: Date;
-  }>;
-  resources?: Resource[];
+  commander?: string; // MongoDB ObjectId
+  createdBy: string; // MongoDB ObjectId
   riskLevel?: 'low' | 'medium' | 'high' | 'extreme';
   hazards?: string[];
   weatherConditions?: {
@@ -82,22 +77,61 @@ export interface InterventionType {
   };
   notes?: Note[];
   timeline?: TimelineEvent[];
-  createdBy: string;
-  createdAt: Date;
   updatedAt: Date;
 }
 
 export interface CreateInterventionPayload {
+  code?: string;
   title: string;
   description: string;
   type: string;
   priority: string;
+  status?: string;
   location: {
-    latitude: number;
-    longitude: number;
+    latitude?: number;
+    longitude?: number;
     address: string;
-    accessInstructions?: string;
+    coordinates?: [number, number]; // [longitude, latitude] for GeoJSON compatibility
   };
-  regionId?: string;
-  estimatedDuration?: number;
+  region?: string; // MongoDB ObjectId
+  station?: string; // MongoDB ObjectId
+  startTime?: string; // ISO date string
+  commander?: string; // MongoDB ObjectId
+  createdBy?: string; // MongoDB ObjectId
+  riskLevel?: string; // 'low', 'medium', 'high', 'extreme'
+  hazards?: string[];
+  teams?: any[];
+  resources?: any[];
+  notes?: any[];
+  timeline?: any[];
+  transcripts?: any[];
+}
+
+export interface InterventionType {
+  _id: string;
+  code: string;
+  title: string;
+  description: string;
+  type: string;
+  priority: string;
+  status: string;
+  location: {
+    type: string;
+    coordinates: [number, number]; // [longitude, latitude] for GeoJSON compatibility
+    address: string;
+  };
+  region: string; // MongoDB ObjectId
+  station: string; // MongoDB ObjectId
+  startTime: string; // ISO date string
+  commander: string; // MongoDB ObjectId
+  createdBy: string; // MongoDB ObjectId
+  riskLevel: string; // 'low', 'medium', 'high', 'extreme'
+  hazards: string[];
+  teams: any[];
+  resources: any[];
+  notes: any[];
+  timeline: any[];
+  transcripts: any[];
+  createdAt: string;
+  updatedAt: string;
 }
